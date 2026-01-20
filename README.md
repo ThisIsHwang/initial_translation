@@ -42,6 +42,7 @@ This repo is intentionally structured so that **data**, **models**, and **metric
 - [3. Repo layout](#3-repo-layout)
 - [4. Installation with uv](#4-installation-with-uv)
 - [5. Installing vLLM](#5-installing-vllm)
+- [5.3 H100 x8 single-node notes](#53-h100-x8-single-node-notes)
 - [6. Installing MetricX code](#6-installing-metricx-code)
 - [7. Dataset: WMT24++](#7-dataset-wmt24)
 - [8. Run the pipeline](#8-run-the-pipeline)
@@ -273,6 +274,73 @@ The repo includes a script:
 
 If it fails, adjust versions / indexes according to your environment.
 
+### 5.3 H100 x8 single-node notes
+
+This repo is usable on many environments, but your stated target environment is:
+
+- **1 node**
+- **8× NVIDIA H100**
+
+That changes a few practical defaults and "gotchas":
+
+#### 5.3.1 Tensor parallel sizing
+
+For your node, a reasonable starting point is:
+
+- `gpt_oss_120b`: `tensor_parallel_size: 8`
+- `qwen3_235b_a22b_instruct_2507`: `tensor_parallel_size: 8`
+- `gemma3_27b_it`: `tensor_parallel_size: 1`
+- `translategemma_4b_it`: `tensor_parallel_size: 1`
+
+These are set in `configs/models/*.yaml` as the initial defaults.
+
+If you want to change GPU usage:
+
+- reduce/raise `tensor_parallel_size`
+- optionally restrict visible GPUs when starting vLLM:
+
+```bash
+./scripts/serve_vllm.sh gpt_oss_120b 8000 0,1,2,3,4,5,6,7
+```
+
+#### 5.3.2 GPU contention between generation and scoring
+
+**Important:** COMET/XCOMET and MetricX typically use the GPU.
+
+If a vLLM server is using **all 8 GPUs** (e.g., TP=8 for a large model), running metric
+scoring at the same time will often cause OOM or severe slowdown.
+
+To keep things reliable, `scripts/run_all.sh` is structured into two phases per model:
+
+1) start vLLM → **generate** all LPs
+2) stop vLLM → **score** all metrics
+
+That matches how you typically operate a single H100x8 node.
+
+If you want to do more advanced GPU packing (e.g., small model on GPU0 while scoring on GPU7),
+you can:
+
+- start the server with an explicit GPU list (3rd arg in `serve_vllm.sh`)
+- run scoring with a dedicated GPU using:
+
+```bash
+SCORE_GPU_LIST=7 ./scripts/score.sh ...
+```
+
+#### 5.3.3 Throughput tuning knobs
+
+The most useful knobs for a high-throughput node:
+
+- Increase HTTP client concurrency when generating:
+
+```bash
+CONCURRENCY=64 ./scripts/generate.sh run1 wmt24pp en-ko_KR gpt_oss_120b http://localhost:8000/v1
+```
+
+- Use `vllm.extra_args` in the model YAML to set vLLM flags (leave as empty list by default).
+
+Always tune with a small LP first (e.g., `en-ko_KR`) before running `all`.
+
 ---
 
 ## 6. Installing MetricX code
@@ -406,6 +474,7 @@ Produces:
 - loop models
   - start vLLM
   - generate for each LP
+  - stop vLLM (to avoid GPU contention)
   - score for each metric
 - aggregate
 

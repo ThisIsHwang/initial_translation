@@ -44,19 +44,30 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
 
   ./scripts/wait_server.sh "$API_BASE" 600
 
+  # ------------------------------------------------------------
+  # Phase A: generation while vLLM is running
+  # ------------------------------------------------------------
   for LP in "${LP_LIST[@]}"; do
     echo "=== Generate: model=$MODEL_KEY lp=$LP ==="
     ./scripts/generate.sh "$RUN_NAME" "$DATASET" "$LP" "$MODEL_KEY" "$API_BASE"
+  done
 
-    for METRIC in "${METRIC_LIST[@]}"; do
+  # IMPORTANT (H100x8 / big models): metrics (COMET / MetricX) often require GPU.
+  # If your vLLM server consumes all GPUs (e.g., TP=8), scoring while the server
+  # is still running can OOM or contend for memory.
+  # So we stop vLLM before scoring by default.
+  cleanup
+  trap - EXIT
+
+  # ------------------------------------------------------------
+  # Phase B: scoring after vLLM is stopped
+  # ------------------------------------------------------------
+  for METRIC in "${METRIC_LIST[@]}"; do
+    for LP in "${LP_LIST[@]}"; do
       echo "=== Score: metric=$METRIC model=$MODEL_KEY lp=$LP ==="
       ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "$MODEL_KEY"
     done
   done
-
-  # stop server for next model
-  cleanup
-  trap - EXIT
 
 done
 

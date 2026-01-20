@@ -5,7 +5,9 @@ vllm:
   port: 8000
   host: 0.0.0.0
   dtype: auto
-  tensor_parallel_size: 2
+  # 27B class models usually fit on a single H100 (80GB). If you want higher throughput,
+  # you can increase this (e.g., 2) but it will consume more GPUs.
+  tensor_parallel_size: 1
   gpu_memory_utilization: 0.90
   max_model_len: 4096
   trust_remote_code: false

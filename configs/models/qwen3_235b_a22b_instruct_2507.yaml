@@ -5,6 +5,9 @@ vllm:
   port: 8000
   host: 0.0.0.0
   dtype: auto
+  # For a single node with 8x H100, start with tensor parallel size 8.
+  # If you see OOM, consider reducing max_model_len and/or using vLLM options like
+  # FP8 KV cache / quantization via extra_args (hardware- and model-dependent).
   tensor_parallel_size: 8
   gpu_memory_utilization: 0.90
   max_model_len: 4096

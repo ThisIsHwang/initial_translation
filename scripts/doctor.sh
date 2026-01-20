@@ -3,22 +3,22 @@ set -euo pipefail
 
 echo "== evalmt doctor =="
 
-echo "[1/6] uv version"
+echo "[1/7] uv version"
 uv --version || { echo "uv not found"; exit 1; }
 
 echo
 
-echo "[2/6] Python version (inside uv env)"
+echo "[2/7] Python version (inside uv env)"
 uv run python -V
 
 echo
 
-echo "[3/6] evalmt import"
+echo "[3/7] evalmt import"
 uv run python -c "import evalmt; print('evalmt version:', getattr(evalmt, '__version__', 'unknown'))"
 
 echo
 
-echo "[4/6] vLLM import (optional)"
+echo "[4/7] vLLM import (optional)"
 if uv run python -c "import vllm" >/dev/null 2>&1; then
   echo "vllm: OK"
 else
@@ -27,7 +27,7 @@ fi
 
 echo
 
-echo "[5/6] MetricX checkout (optional)"
+echo "[5/7] MetricX checkout (optional)"
 if [ -d "third_party/metricx" ]; then
   echo "third_party/metricx: present"
 else
@@ -36,10 +36,19 @@ fi
 
 echo
 
-echo "[6/6] Writable outputs"
+echo "[6/7] Writable outputs"
 mkdir -p outputs data
 [ -w outputs ] && echo "outputs/: writable" || echo "outputs/: NOT writable"
 [ -w data ] && echo "data/: writable" || echo "data/: NOT writable"
+
+echo
+
+echo "[7/7] GPU info (optional)"
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi -L || true
+else
+  echo "nvidia-smi not found"
+fi
 
 echo
 echo "✅ doctor finished"

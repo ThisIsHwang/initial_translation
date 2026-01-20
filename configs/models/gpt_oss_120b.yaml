@@ -8,7 +8,10 @@ vllm:
   port: 8000
   host: 0.0.0.0
   dtype: auto
-  tensor_parallel_size: 1
+  # Recommended starting point for a single node with 8x H100:
+  # - use all 8 GPUs for tensor parallelism
+  # If you have fewer GPUs, reduce this accordingly.
+  tensor_parallel_size: 8
   gpu_memory_utilization: 0.90
   max_model_len: 4096
   trust_remote_code: false
