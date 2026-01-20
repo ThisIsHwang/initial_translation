@@ -1,0 +1,12 @@
+# WMT24++ dataset
+# Repo: google/wmt24pp (Hugging Face)
+
+type: wmt24pp
+hf_repo: google/wmt24pp
+repo_type: dataset
+
+# Filtering / reference selection
+filter_bad_source: true
+use_post_edit_as_reference: true
+
+prepared_dir: data/wmt24pp

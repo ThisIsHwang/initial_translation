@@ -1,0 +1,11 @@
+# MetricX-24 reference-based scoring
+type: metricx
+variant: metricx24
+mode: ref
+
+tokenizer: google/mt5-xl
+model_name_or_path: google/metricx-24-hybrid-xl-v2p6
+max_input_length: 1536
+batch_size: 1
+
+direction: lower_is_better

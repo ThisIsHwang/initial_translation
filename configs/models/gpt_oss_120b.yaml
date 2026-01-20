@@ -1,0 +1,29 @@
+hf_model_id: openai/gpt-oss-120b
+served_model_name: gpt-oss-120b
+
+# Some models (gpt-oss) may require special vLLM builds.
+requires_vllm_flavor: gptoss
+
+vllm:
+  port: 8000
+  host: 0.0.0.0
+  dtype: auto
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.90
+  max_model_len: 4096
+  trust_remote_code: false
+  extra_args: []
+
+prompt:
+  system: |
+    You are a professional translator.
+    Translate from English to {target_language} ({target_region}).
+    Output ONLY the translated text. No explanations, no extra words.
+  user: |
+    {source}
+
+generation_defaults:
+  temperature: 0.0
+  top_p: 1.0
+  max_tokens: 256
+  stop: []
