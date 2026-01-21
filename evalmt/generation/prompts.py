@@ -14,12 +14,14 @@ LANGUAGE_BY_CODE = {
     "cs_CZ": "Czech",
     "da_DK": "Danish",
     "de_DE": "German",
+    "deu": "German",
     "el_GR": "Greek",
     "es_MX": "Spanish",
     "et_EE": "Estonian",
     "fa_IR": "Farsi",
     "fi_FI": "Finnish",
     "fil_PH": "Filipino",
+    "fra": "French",
     "fr_CA": "French",
     "fr_FR": "French",
     "gu_IN": "Gujarati",
@@ -30,9 +32,12 @@ LANGUAGE_BY_CODE = {
     "id_ID": "Indonesian",
     "is_IS": "Icelandic",
     "it_IT": "Italian",
+    "ita": "Italian",
     "ja_JP": "Japanese",
+    "jpn": "Japanese",
     "kn_IN": "Kannada",
     "ko_KR": "Korean",
+    "kor": "Korean",
     "lt_LT": "Lithuanian",
     "lv_LV": "Latvian",
     "ml_IN": "Malayalam",
@@ -41,12 +46,15 @@ LANGUAGE_BY_CODE = {
     "no_NO": "Norwegian",
     "pa_IN": "Punjabi",
     "pl_PL": "Polish",
+    "pol": "Polish",
     "pt_BR": "Portuguese",
     "pt_PT": "Portuguese",
     "ro_RO": "Romanian",
     "ru_RU": "Russian",
+    "rus": "Russian",
     "sk_SK": "Slovak",
     "sl_SI": "Slovenian",
+    "spa": "Spanish",
     "sr_RS": "Serbian",
     "sv_SE": "Swedish",
     "sw_KE": "Swahili",
@@ -58,8 +66,10 @@ LANGUAGE_BY_CODE = {
     "uk_UA": "Ukrainian",
     "ur_PK": "Urdu",
     "vi_VN": "Vietnamese",
+    "vie": "Vietnamese",
     "zh_CN": "Mandarin",
     "zh_TW": "Mandarin",
+    "zho": "Chinese",
     "zu_ZA": "Zulu",
 }
 
@@ -72,12 +82,14 @@ REGION_BY_CODE = {
     "cs_CZ": "Czechia",
     "da_DK": "Denmark",
     "de_DE": "Germany",
+    "deu": "Germany",
     "el_GR": "Greece",
     "es_MX": "Mexico",
     "et_EE": "Estonia",
     "fa_IR": "Iran",
     "fi_FI": "Finland",
     "fil_PH": "Philippines",
+    "fra": "France",
     "fr_CA": "Canada",
     "fr_FR": "France",
     "gu_IN": "India",
@@ -88,9 +100,12 @@ REGION_BY_CODE = {
     "id_ID": "Indonesia",
     "is_IS": "Iceland",
     "it_IT": "Italy",
+    "ita": "Italy",
     "ja_JP": "Japan",
+    "jpn": "Japan",
     "kn_IN": "India",
     "ko_KR": "South Korea",
+    "kor": "South Korea",
     "lt_LT": "Lithuania",
     "lv_LV": "Latvia",
     "ml_IN": "India",
@@ -99,12 +114,15 @@ REGION_BY_CODE = {
     "no_NO": "Norway",
     "pa_IN": "India",
     "pl_PL": "Poland",
+    "pol": "Poland",
     "pt_BR": "Brazil",
     "pt_PT": "Portugal",
     "ro_RO": "Romania",
     "ru_RU": "Russia",
+    "rus": "Russia",
     "sk_SK": "Slovakia",
     "sl_SI": "Slovenia",
+    "spa": "Spain",
     "sr_RS": "Serbia",
     "sv_SE": "Sweden",
     "sw_KE": "Kenya",
@@ -116,8 +134,10 @@ REGION_BY_CODE = {
     "uk_UA": "Ukraine",
     "ur_PK": "Pakistan",
     "vi_VN": "Vietnam",
+    "vie": "Vietnam",
     "zh_CN": "China",
     "zh_TW": "Taiwan",
+    "zho": "China",
     "zu_ZA": "South Africa",
 }
 
@@ -130,9 +150,11 @@ class TargetLang:
 
 
 def target_from_lp(lp: str) -> TargetLang:
-    """"en-ko_KR" -> target code "ko_KR" + friendly language/region."""
+    """"en-ko_KR" or "eng-US-deu" -> target code + friendly language/region."""
 
-    tgt = lp.split("-", 1)[1]
+    if "-" not in lp:
+        raise ValueError(f"Invalid language pair format: {lp}")
+    tgt = lp.rsplit("-", 1)[1]
     return TargetLang(
         code=tgt,
         language=LANGUAGE_BY_CODE.get(tgt, tgt),
