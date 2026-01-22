@@ -51,8 +51,9 @@ async def main_async() -> None:
     tgt = target_from_lp(args.lp)
 
     served = model_cfg.get("served_model_name", model_cfg["hf_model_id"])
-    sys_tmpl = model_cfg["prompt"]["system"]
-    usr_tmpl = model_cfg["prompt"]["user"]
+    prompt_cfg = model_cfg.get("prompt", {})
+    sys_tmpl = prompt_cfg.get("system") or ""
+    usr_tmpl = prompt_cfg.get("user") or "{source}"
 
     gen_defaults = model_cfg.get("generation_defaults", {})
     temperature = float(gen_defaults.get("temperature", 0.0))
@@ -67,11 +68,15 @@ async def main_async() -> None:
     async def run_one(r: Dict[str, Any]) -> Dict[str, Any]:
         async with sem:
             system = sys_tmpl.format(target_language=tgt.language, target_region=tgt.region)
-            user = usr_tmpl.format(source=r["source"])
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ]
+            user = usr_tmpl.format(
+                source=r["source"],
+                target_language=tgt.language,
+                target_region=tgt.region,
+            )
+            messages = []
+            if sys_tmpl and system.strip():
+                messages.append({"role": "system", "content": system})
+            messages.append({"role": "user", "content": user})
             resp = await chat_completion(
                 api_base=args.api_base,
                 model=served,

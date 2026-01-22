@@ -42,6 +42,12 @@ def main() -> None:
         cmd += ["--gpu-memory-utilization", str(vllm_cfg["gpu_memory_utilization"])]
     if "max_model_len" in vllm_cfg:
         cmd += ["--max-model-len", str(vllm_cfg["max_model_len"])]
+    if "tokenizer" in vllm_cfg:
+        cmd += ["--tokenizer", str(vllm_cfg["tokenizer"])]
+    if "tokenizer_mode" in vllm_cfg:
+        cmd += ["--tokenizer-mode", str(vllm_cfg["tokenizer_mode"])]
+    if "chat_template" in vllm_cfg:
+        cmd += ["--chat-template", str(vllm_cfg["chat_template"])]
 
     cmd += _bool_flag("--trust-remote-code", bool(vllm_cfg.get("trust_remote_code", False)))
 

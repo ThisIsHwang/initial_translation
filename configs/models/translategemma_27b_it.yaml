@@ -1,0 +1,32 @@
+hf_model_id: google/translategemma-27b-it
+served_model_name: translategemma-27b-it
+
+vllm:
+  port: 8000
+  host: 0.0.0.0
+  dtype: auto
+  # 27B class models usually fit on a single H100 (80GB). If you want higher throughput,
+  # you can increase this (e.g., 2) but it will consume more GPUs.
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.90
+  max_model_len: 4096
+  trust_remote_code: false
+  # Use the Gemma 3 tokenizer + chat template to avoid jinja template mismatch in vLLM.
+  tokenizer: google/gemma-3-27b-it
+  # If your vLLM build requires an explicit chat template, point it here.
+  # chat_template: /absolute/path/to/chat_template.jinja
+  extra_args: []
+
+prompt:
+  system: ""
+  user: |
+    Translate from English to {target_language} ({target_region}).
+    Output ONLY the translated text. No explanations.
+
+    {source}
+
+generation_defaults:
+  temperature: 0.0
+  top_p: 1.0
+  max_tokens: 256
+  stop: []
