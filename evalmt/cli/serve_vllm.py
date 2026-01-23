@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shlex
 import subprocess
 from typing import Any, Dict, List
@@ -46,6 +47,10 @@ def main() -> None:
         cmd += ["--tokenizer", str(vllm_cfg["tokenizer"])]
     if "tokenizer_mode" in vllm_cfg:
         cmd += ["--tokenizer-mode", str(vllm_cfg["tokenizer_mode"])]
+    if "hf_config_path" in vllm_cfg:
+        cmd += ["--hf-config-path", str(vllm_cfg["hf_config_path"])]
+    if "hf_overrides" in vllm_cfg:
+        cmd += ["--hf-overrides", json.dumps(vllm_cfg["hf_overrides"])]
     if "chat_template" in vllm_cfg:
         cmd += ["--chat-template", str(vllm_cfg["chat_template"])]
 
