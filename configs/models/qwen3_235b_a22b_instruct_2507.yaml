@@ -15,7 +15,6 @@ vllm:
   extra_args: []
 
 prompt:
-  format: translategemma
   system: |
     You are a professional translator.
     Translate from English to {target_language} ({target_region}).

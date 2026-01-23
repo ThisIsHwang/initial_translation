@@ -9,8 +9,11 @@ from typing import Any, Dict, List, Set
 from tqdm import tqdm
 
 from ..config import ROOT, ensure_dir, load_dataset_config, load_model_config
-from ..generation.prompts import target_from_lp
-from ..generation.translategemma_prompt import render_translategemma_prompt, split_lang_pair
+from ..generation.prompts import (
+    build_translategemma_messages,
+    split_lang_pair,
+    target_from_lp,
+)
 from ..generation.vllm_openai import chat_completion, clean_translation, extract_text
 from ..utils.jsonl import iter_jsonl
 
@@ -51,13 +54,13 @@ async def main_async() -> None:
 
     served = model_cfg.get("served_model_name", model_cfg["hf_model_id"])
     prompt_cfg = model_cfg.get("prompt", {})
-    prompt_format = str(prompt_cfg.get("format", "simple")).lower()
-    prompt_content_type = str(prompt_cfg.get("content_type", "text")).lower()
+    message_format = str(model_cfg.get("message_format", "simple")).lower()
+    message_content_type = str(model_cfg.get("message_content_type", "text")).lower()
     sys_tmpl = prompt_cfg.get("system") or ""
     usr_tmpl = prompt_cfg.get("user") or "{source}"
     tgt = target_from_lp(args.lp)
     src_code, tgt_code = ("", "")
-    if prompt_format == "translategemma":
+    if message_format == "translategemma":
         src_code, tgt_code = split_lang_pair(args.lp)
 
     gen_defaults = model_cfg.get("generation_defaults", {})
@@ -72,14 +75,13 @@ async def main_async() -> None:
 
     async def run_one(r: Dict[str, Any]) -> Dict[str, Any]:
         async with sem:
-            if prompt_format == "translategemma":
-                user = render_translategemma_prompt(
+            if message_format == "translategemma":
+                messages = build_translategemma_messages(
                     source_text=r["source"],
                     source_lang_code=src_code,
                     target_lang_code=tgt_code,
-                    content_type=prompt_content_type,
+                    content_type=message_content_type,
                 )
-                messages = [{"role": "user", "content": user}]
             else:
                 system = sys_tmpl.format(target_language=tgt.language, target_region=tgt.region)
                 user = usr_tmpl.format(

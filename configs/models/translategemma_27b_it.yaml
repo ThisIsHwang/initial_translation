@@ -1,6 +1,8 @@
 hf_model_id: google/translategemma-27b-it
 served_model_name: translategemma-27b-it
 
+message_format: translategemma
+
 vllm:
   port: 8000
   host: 0.0.0.0
@@ -11,16 +13,9 @@ vllm:
   gpu_memory_utilization: 0.90
   max_model_len: 4096
   trust_remote_code: false
-  # Use the Gemma 3 tokenizer + chat template to avoid jinja template mismatch in vLLM.
-  tokenizer: google/gemma-3-27b-it
-  # Use Gemma 3 config to provide rope_parameters expected by vLLM's Gemma 3 model.
-  hf_config_path: google/gemma-3-27b-it
-  # If your vLLM build requires an explicit chat template, point it here.
-  # chat_template: /absolute/path/to/chat_template.jinja
   extra_args: []
 
 prompt:
-  format: translategemma
   system: |
     You are a professional translator.
     Translate from English to {target_language} ({target_region}).

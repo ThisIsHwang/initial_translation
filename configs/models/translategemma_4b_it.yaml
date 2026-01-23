@@ -1,6 +1,8 @@
 hf_model_id: google/translategemma-4b-it
 served_model_name: translategemma-4b-it
 
+message_format: translategemma
+
 vllm:
   port: 8000
   host: 0.0.0.0
@@ -12,7 +14,6 @@ vllm:
   extra_args: []
 
 prompt:
-  format: translategemma
   system: |
     You are a professional translator.
     Translate from English to {target_language} ({target_region}).

@@ -140,6 +140,7 @@ REGION_BY_CODE = {
     "zho": "China",
     "zu_ZA": "South Africa",
 }
+LANGUAGE_BY_CODE = {**REGION_BY_CODE, **LANGUAGE_BY_CODE}
 
 
 @dataclass(frozen=True)
@@ -160,3 +161,62 @@ def target_from_lp(lp: str) -> TargetLang:
         language=LANGUAGE_BY_CODE.get(tgt, tgt),
         region=REGION_BY_CODE.get(tgt, tgt),
     )
+
+# TranslateGemma message schema helpers.
+
+TRANSLATEGEMMA_LANGUAGE_BY_CODE = LANGUAGE_BY_CODE
+TRANSLATEGEMMA_CODE_ALIASES = {}
+
+
+def split_lang_pair(lp: str) -> tuple[str, str]:
+    if "-" not in lp:
+        raise ValueError(f"Invalid language pair format: {lp}")
+    src, tgt = lp.rsplit("-", 1)
+    return src, tgt
+
+
+def _normalize_translategemma_lang_code(code: str) -> str:
+    norm = (code or "").replace("-", "_")
+    if "_" in norm:
+        base, rest = norm.split("_", 1)
+        base = TRANSLATEGEMMA_CODE_ALIASES.get(base, base)
+        norm = f"{base}_{rest}"
+    else:
+        norm = TRANSLATEGEMMA_CODE_ALIASES.get(norm, norm)
+    if norm in TRANSLATEGEMMA_LANGUAGE_BY_CODE:
+        return norm
+    return norm
+
+
+def build_translategemma_messages(
+    *,
+    source_text: str,
+    source_lang_code: str,
+    target_lang_code: str,
+    content_type: str = "text",
+) -> list[dict[str, object]]:
+    src_code = _normalize_translategemma_lang_code(source_lang_code)
+    tgt_code = _normalize_translategemma_lang_code(target_lang_code)
+    if content_type == "image":
+        content = {
+            "type": "image",
+            "source_lang_code": src_code,
+            "target_lang_code": tgt_code,
+            "image": (source_text or "").strip(),
+        }
+    elif content_type == "text":
+        content = {
+            "type": "text",
+            "source_lang_code": src_code,
+            "target_lang_code": tgt_code,
+            "text": (source_text or "").strip(),
+        }
+    else:
+        raise ValueError(f"Unsupported content_type: {content_type}")
+
+    return [
+        {
+            "role": "user",
+            "content": [content],
+        }
+    ]
