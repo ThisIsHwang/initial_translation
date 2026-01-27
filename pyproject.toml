@@ -48,6 +48,8 @@ evalmt-wait-server = "evalmt.cli.wait_server:main"
 evalmt-generate = "evalmt.cli.generate:main"
 evalmt-score = "evalmt.cli.score:main"
 evalmt-aggregate = "evalmt.cli.aggregate:main"
+evalmt-docops = "evalmt.cli.docops:main"
+evalmt-aggregate-combos = "evalmt.cli.aggregate_combos:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["evalmt"]

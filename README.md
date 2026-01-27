@@ -271,6 +271,27 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   `*.system_score.txt`로 저장합니다.
 - 한국어(`ko`)는 `ko-mecab`, 중국어(`zh`)는 `asian_support=true`일 때 `zh` 토크나이저를 사용합니다.
 
+### 8.3.3 문장/문단 4조합 평가
+
+문장 단위/문단 단위 번역과 평가를 조합해 **4가지 케이스**를 한 번에 실행합니다.
+
+```bash
+./scripts/doc_combos.sh run1 wmt24pp en-ko_KR \
+  gpt_oss_120b,translategemma_27b_it,gemma3_27b_it \
+  xcomet_mqm,xcomet_qe,metricx24_ref,metricx24_qe,bleu
+```
+
+- 조합:
+  - sentence -> sentence
+  - sentence -> document
+  - document -> document
+  - document -> sentence
+- 결과 CSV:
+  - `outputs/<run>/summary.csv`
+  - `outputs/<run>/summary_combos.csv` (combo 컬럼 포함)
+- 문단 구성 separator는 `DOC_SEP`로 변경 가능 (기본 `</s>`).
+- `API_BASE`가 `localhost`가 아니면 로컬 vLLM 서버는 자동 실행되지 않습니다.
+
 ### 8.4 집계
 
 ```bash
@@ -304,6 +325,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - `scripts/score.sh`: 메트릭 점수화
 - `scripts/aggregate.sh`: 요약 CSV 생성
 - `scripts/run_all.sh`: 전체 파이프라인 실행
+- `scripts/doc_combos.sh`: 문장/문단 4조합 평가
 
 ### CLI 엔트리포인트
 
@@ -313,6 +335,8 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - `evalmt-generate`
 - `evalmt-score`
 - `evalmt-aggregate`
+- `evalmt-docops`
+- `evalmt-aggregate-combos`
 
 ---
 

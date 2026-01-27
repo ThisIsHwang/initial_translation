@@ -1,0 +1,288 @@
+from __future__ import annotations
+
+import argparse
+import re
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+from ..utils.jsonl import iter_jsonl, write_jsonl
+
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
+def _infer_order_field(rows: List[Dict[str, Any]], order_field: Optional[str]) -> Optional[str]:
+    if order_field:
+        return order_field
+    for cand in ("segment_id", "no", "idx"):
+        if any(cand in r for r in rows):
+            return cand
+    return None
+
+
+def _group_indices(
+    rows: List[Dict[str, Any]],
+    *,
+    doc_field: str,
+    order_field: Optional[str],
+) -> Tuple[List[Any], Dict[Any, List[int]]]:
+    has_doc_field = doc_field and any(r.get(doc_field) is not None for r in rows)
+    order_field = _infer_order_field(rows, order_field)
+
+    groups: Dict[Any, List[int]] = {}
+    order: List[Any] = []
+    for i, r in enumerate(rows):
+        if has_doc_field:
+            doc_id = r.get(doc_field)
+            if doc_id is None:
+                doc_id = f"__missing_doc_{i}"
+        else:
+            doc_id = "__all__"
+        if doc_id not in groups:
+            groups[doc_id] = []
+            order.append(doc_id)
+        groups[doc_id].append(i)
+
+    if order_field:
+        for doc_id, idxs in groups.items():
+            vals = [rows[i].get(order_field) for i in idxs]
+            if all(v is not None for v in vals):
+                groups[doc_id] = sorted(idxs, key=lambda i: rows[i].get(order_field))
+
+    return order, groups
+
+
+def _join_with_sep(parts: List[str], sep: str) -> str:
+    parts = [p for p in parts if p]
+    if not parts:
+        return ""
+    if not sep:
+        return " ".join(parts)
+    # If sep has no whitespace/newline, add spaces around it.
+    if not sep.isspace() and "\n" not in sep and "\t" not in sep and " " not in sep:
+        glue = f" {sep} "
+    else:
+        glue = sep
+    return glue.join(parts)
+
+
+def _build_doc_rows(
+    rows: List[Dict[str, Any]],
+    *,
+    fields: List[str],
+    sep: str,
+    doc_field: str,
+    order_field: Optional[str],
+    include_segment_ids: bool,
+) -> List[Dict[str, Any]]:
+    doc_order, groups = _group_indices(rows, doc_field=doc_field, order_field=order_field)
+    out_rows: List[Dict[str, Any]] = []
+    order_field = _infer_order_field(rows, order_field)
+
+    for doc_id in doc_order:
+        idxs = groups[doc_id]
+        base = dict(rows[idxs[0]])
+        if doc_id is not None:
+            base[doc_field] = doc_id
+            base["id"] = f"doc:{doc_id}"
+
+        for field in fields:
+            parts = [_normalize_text(rows[i].get(field)) for i in idxs]
+            base[field] = _join_with_sep(parts, sep)
+
+        base["segment_count"] = len(idxs)
+        if include_segment_ids:
+            if order_field:
+                base["segment_ids"] = [rows[i].get(order_field) for i in idxs]
+            else:
+                base["segment_ids"] = idxs
+        out_rows.append(base)
+
+    return out_rows
+
+
+def _split_text(
+    text: str,
+    *,
+    sep: str,
+    splitter: str,
+    regex: Optional[str],
+) -> List[str]:
+    text = (text or "").strip()
+    if not text:
+        return []
+
+    if splitter in ("auto", "sep") and sep and sep in text:
+        parts = [p.strip() for p in text.split(sep)]
+        return [p for p in parts if p]
+
+    if splitter == "sep":
+        return [text]
+
+    pattern = regex or r"(?<=[.!?。！？])\s+"
+    chunks = [c.strip() for c in text.replace("\r\n", "\n").split("\n") if c.strip()]
+    parts: List[str] = []
+    for c in chunks:
+        segs = [s.strip() for s in re.split(pattern, c) if s.strip()]
+        if len(segs) == 1:
+            segs = [s.strip() for s in re.split(r"(?<=[.!?。！？])", c) if s.strip()]
+        parts.extend(segs)
+    return [p for p in parts if p]
+
+
+def _align_segments(parts: List[str], target_n: int) -> Tuple[List[str], str]:
+    if target_n <= 0:
+        return [], "empty"
+    if len(parts) == target_n:
+        return parts, "exact"
+    if len(parts) > target_n:
+        merged = parts[: target_n - 1] + [" ".join(parts[target_n - 1 :]).strip()]
+        return merged, "merged"
+    padded = parts + [""] * (target_n - len(parts))
+    return padded, "padded"
+
+
+def _parse_fields(rows: List[Dict[str, Any]], fields_arg: Optional[str]) -> List[str]:
+    if fields_arg:
+        fields = [f.strip() for f in fields_arg.split(",") if f.strip()]
+        return fields
+    fields = ["source", "reference"]
+    if any("hypothesis" in r for r in rows):
+        fields.append("hypothesis")
+    return fields
+
+
+def cmd_to_doc(args: argparse.Namespace) -> None:
+    in_path = Path(args.input)
+    out_path = Path(args.output)
+    rows = list(iter_jsonl(in_path))
+    if not rows:
+        raise ValueError(f"No rows in {in_path}")
+
+    fields = _parse_fields(rows, args.fields)
+    for f in fields:
+        if any(f not in r for r in rows):
+            raise KeyError(f"Missing '{f}' in some rows of {in_path}")
+
+    doc_rows = _build_doc_rows(
+        rows,
+        fields=fields,
+        sep=args.sep,
+        doc_field=args.doc_field,
+        order_field=args.order_field,
+        include_segment_ids=args.include_segment_ids,
+    )
+
+    write_jsonl(out_path, doc_rows, append=False)
+    print(f"✅ doc jsonl -> {out_path} (docs={len(doc_rows)})")
+
+
+def cmd_expand(args: argparse.Namespace) -> None:
+    base_path = Path(args.base)
+    doc_path = Path(args.doc)
+    out_path = Path(args.output)
+
+    base_rows = list(iter_jsonl(base_path))
+    if not base_rows:
+        raise ValueError(f"No rows in {base_path}")
+
+    doc_rows = list(iter_jsonl(doc_path))
+    if not doc_rows:
+        raise ValueError(f"No rows in {doc_path}")
+
+    doc_field = args.doc_field
+    order_field = _infer_order_field(base_rows, args.order_field)
+
+    doc_has_field = doc_field and any(r.get(doc_field) is not None for r in doc_rows)
+    doc_map: Dict[Any, Dict[str, Any]] = {}
+    if doc_has_field:
+        for r in doc_rows:
+            doc_id = r.get(doc_field)
+            if doc_id is not None:
+                doc_map[doc_id] = r
+
+    doc_order, groups = _group_indices(base_rows, doc_field=doc_field, order_field=order_field)
+
+    sent_hyps: List[str] = ["" for _ in base_rows]
+    doc_split_status: List[str] = ["" for _ in base_rows]
+    doc_hyps: List[str] = ["" for _ in base_rows]
+
+    for doc_idx, doc_id in enumerate(doc_order):
+        idxs = groups[doc_id]
+        if doc_has_field:
+            doc_row = doc_map.get(doc_id, {})
+        else:
+            doc_row = doc_rows[doc_idx] if doc_idx < len(doc_rows) else {}
+
+        doc_hyp = _normalize_text(doc_row.get(args.hyp_field))
+        parts = _split_text(
+            doc_hyp,
+            sep=args.sep,
+            splitter=args.splitter,
+            regex=args.regex,
+        )
+        aligned, status = _align_segments(parts, len(idxs))
+
+        for i, idx in enumerate(idxs):
+            sent_hyps[idx] = aligned[i] if i < len(aligned) else ""
+            doc_split_status[idx] = status
+            doc_hyps[idx] = doc_hyp
+
+    out_rows: List[Dict[str, Any]] = []
+    for i, r in enumerate(base_rows):
+        rr = dict(r)
+        rr[args.hyp_field] = sent_hyps[i]
+        if args.add_doc_hyp:
+            rr["doc_hypothesis"] = doc_hyps[i]
+            rr["doc_split_status"] = doc_split_status[i]
+        out_rows.append(rr)
+
+    write_jsonl(out_path, out_rows, append=False)
+    print(f"✅ expanded jsonl -> {out_path} (rows={len(out_rows)})")
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_doc = sub.add_parser("to-doc")
+    p_doc.add_argument("--input", required=True)
+    p_doc.add_argument("--output", required=True)
+    p_doc.add_argument("--sep", default="</s>")
+    p_doc.add_argument("--doc-field", default="document_id")
+    p_doc.add_argument("--order-field", default=None)
+    p_doc.add_argument("--fields", default=None, help="comma-separated fields to concat")
+    p_doc.add_argument("--include-segment-ids", action="store_true")
+
+    p_exp = sub.add_parser("expand")
+    p_exp.add_argument("--base", required=True, help="sentence-level base jsonl")
+    p_exp.add_argument("--doc", required=True, help="doc-level jsonl with hypothesis")
+    p_exp.add_argument("--output", required=True)
+    p_exp.add_argument("--sep", default="</s>")
+    p_exp.add_argument("--doc-field", default="document_id")
+    p_exp.add_argument("--order-field", default=None)
+    p_exp.add_argument("--hyp-field", default="hypothesis")
+    p_exp.add_argument("--splitter", choices=["auto", "sep", "regex"], default="auto")
+    p_exp.add_argument("--regex", default=None)
+    p_exp.add_argument("--add-doc-hyp", action="store_true")
+
+    return p.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if args.cmd == "to-doc":
+        cmd_to_doc(args)
+    elif args.cmd == "expand":
+        cmd_expand(args)
+    else:
+        raise SystemExit(f"Unknown cmd: {args.cmd}")
+
+
+if __name__ == "__main__":
+    main()
