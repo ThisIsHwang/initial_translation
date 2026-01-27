@@ -21,6 +21,7 @@ dependencies = [
 
   # Metrics
   "unbabel-comet>=2.2.0",
+  "sacrebleu>=2.4.0",
 
   # Transformer stack (MetricX / general tokenization)
   "torch>=2.2.0",

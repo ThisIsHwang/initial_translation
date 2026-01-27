@@ -1,0 +1,11 @@
+# SacreBLEU (sentence BLEU; corpus BLEU written to .system_score.txt)
+type: bleu
+mode: ref
+
+# Tokenization & casing
+case_sensitive: true
+asian_support: true
+# tokenize: ko-mecab | ja-mecab | zh | 13a (auto-selected if omitted)
+effective_order: true
+
+direction: higher_is_better

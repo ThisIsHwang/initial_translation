@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from comet import download_model, load_from_checkpoint
 
@@ -12,12 +12,108 @@ from .registry import register_metric
 
 @register_metric("comet")
 class CometMetric(BaseMetric):
+    @staticmethod
+    def _normalize_text(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
+
+    @staticmethod
+    def _join_with_sep(parts: List[str], sep: str) -> str:
+        parts = [p for p in parts if p]
+        if not parts:
+            return ""
+        if not sep:
+            return " ".join(parts)
+        return f" {sep} ".join(parts)
+
+    @staticmethod
+    def _infer_order_field(rows: List[Dict[str, Any]], order_field: Optional[str]) -> Optional[str]:
+        if order_field:
+            return order_field
+        for cand in ("segment_id", "no", "idx"):
+            if any(cand in r for r in rows):
+                return cand
+        return None
+
+    def _build_context_fields(
+        self,
+        rows: List[Dict[str, Any]],
+        *,
+        window: int,
+        sep: str,
+        doc_field: str,
+        order_field: Optional[str],
+        src_field: str,
+        mt_field: str,
+        ref_field: str,
+    ) -> Tuple[List[str], List[str], List[str]]:
+        n = len(rows)
+        ctx_src = [""] * n
+        ctx_mt = [""] * n
+        ctx_ref = [""] * n
+
+        if window <= 0:
+            for i, r in enumerate(rows):
+                ctx_src[i] = self._normalize_text(r.get(src_field))
+                ctx_mt[i] = self._normalize_text(r.get(mt_field))
+                ctx_ref[i] = self._normalize_text(r.get(ref_field))
+            return ctx_src, ctx_mt, ctx_ref
+
+        has_doc_field = doc_field and any(r.get(doc_field) is not None for r in rows)
+        order_field = self._infer_order_field(rows, order_field)
+
+        doc_groups: Dict[Any, List[int]] = {}
+        for i, r in enumerate(rows):
+            if has_doc_field:
+                doc_id = r.get(doc_field)
+                if doc_id is None:
+                    doc_id = f"__missing_doc_{i}"
+            else:
+                doc_id = "__all__"
+            doc_groups.setdefault(doc_id, []).append(i)
+
+        for _, idxs in doc_groups.items():
+            idxs_sorted = idxs
+            if order_field:
+                order_vals = [rows[i].get(order_field) for i in idxs]
+                if all(v is not None for v in order_vals):
+                    idxs_sorted = sorted(idxs, key=lambda i: rows[i].get(order_field))
+
+            for pos, idx in enumerate(idxs_sorted):
+                start = max(0, pos - window)
+                ctx_idxs = idxs_sorted[start:pos]
+
+                src_parts = [self._normalize_text(rows[j].get(src_field)) for j in ctx_idxs]
+                mt_parts = [self._normalize_text(rows[j].get(mt_field)) for j in ctx_idxs]
+                ref_parts = [self._normalize_text(rows[j].get(ref_field)) for j in ctx_idxs]
+
+                src_parts.append(self._normalize_text(rows[idx].get(src_field)))
+                mt_parts.append(self._normalize_text(rows[idx].get(mt_field)))
+                ref_parts.append(self._normalize_text(rows[idx].get(ref_field)))
+
+                ctx_src[idx] = self._join_with_sep(src_parts, sep)
+                ctx_mt[idx] = self._join_with_sep(mt_parts, sep)
+                ctx_ref[idx] = self._join_with_sep(ref_parts, sep)
+
+        return ctx_src, ctx_mt, ctx_ref
+
     def score(self, *, gen_path: Path, out_path: Path, tmp_dir: Path) -> None:
         model_id = self.cfg["model"]
         mode = self.cfg.get("mode", "ref")  # ref | qe
         batch_size = int(self.cfg.get("batch_size", 8))
         gpus = int(self.cfg.get("gpus", 1))
         export_spans = bool(self.cfg.get("export_error_spans", False))
+        enable_context = bool(self.cfg.get("enable_context", False))
+        context_window = int(self.cfg.get("context_window", 0))
+        context_sep = str(self.cfg.get("context_separator", "</s>"))
+        context_doc_field = str(self.cfg.get("context_doc_field", "document_id"))
+        context_order_field = self.cfg.get("context_order_field", None)
+        src_field = str(self.cfg.get("src_field", "source"))
+        mt_field = str(self.cfg.get("mt_field", "hypothesis"))
+        ref_field = str(self.cfg.get("ref_field", "reference"))
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -25,14 +121,41 @@ class CometMetric(BaseMetric):
         model = load_from_checkpoint(model_path)
 
         rows = list(iter_jsonl(gen_path))
-        comet_in: List[Dict[str, Any]] = []
-        for r in rows:
-            if mode == "qe":
-                comet_in.append({"src": r["source"], "mt": r["hypothesis"]})
-            else:
-                comet_in.append({"src": r["source"], "mt": r["hypothesis"], "ref": r["reference"]})
+        if not rows:
+            raise ValueError(f"No rows to score in {gen_path}")
 
-        out = model.predict(comet_in, batch_size=batch_size, gpus=gpus)
+        if any(src_field not in r for r in rows):
+            raise KeyError(f"Missing '{src_field}' field for COMET input in {gen_path}")
+        if any(mt_field not in r for r in rows):
+            raise KeyError(f"Missing '{mt_field}' field for COMET input in {gen_path}")
+        if mode != "qe" and any(ref_field not in r for r in rows):
+            raise KeyError(f"Missing '{ref_field}' field for COMET input in {gen_path}")
+
+        if context_window > 0:
+            enable_context = True
+
+        ctx_src, ctx_mt, ctx_ref = self._build_context_fields(
+            rows,
+            window=context_window,
+            sep=context_sep,
+            doc_field=context_doc_field,
+            order_field=context_order_field,
+            src_field=src_field,
+            mt_field=mt_field,
+            ref_field=ref_field,
+        )
+
+        comet_in: List[Dict[str, Any]] = []
+        for i, _r in enumerate(rows):
+            if mode == "qe":
+                comet_in.append({"src": ctx_src[i], "mt": ctx_mt[i]})
+            else:
+                comet_in.append({"src": ctx_src[i], "mt": ctx_mt[i], "ref": ctx_ref[i]})
+
+        try:
+            out = model.predict(comet_in, batch_size=batch_size, gpus=gpus, enable_context=enable_context)
+        except TypeError:
+            out = model.predict(comet_in, batch_size=batch_size, gpus=gpus)
 
         spans = None
         if export_spans:

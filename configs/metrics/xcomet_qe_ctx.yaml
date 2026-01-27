@@ -1,0 +1,15 @@
+# QE COMET with document context (DocCOMET-style)
+type: comet
+mode: qe
+model: Unbabel/wmt23-cometkiwi-da-xxl
+
+# Context settings
+enable_context: true
+context_window: 2
+context_separator: "</s>"
+# context_doc_field defaults to "document_id"
+# context_order_field is auto-inferred (segment_id/no/idx)
+
+direction: higher_is_better
+batch_size: 8
+gpus: 1

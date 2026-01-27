@@ -1,7 +1,7 @@
 # evalmt
 
 vLLM 기반 **기계번역(MT) 생성 + 평가 파이프라인**입니다.  
-WMT24++ 데이터셋을 준비하고, vLLM(OpenAI 호환 API)로 번역을 생성한 뒤, XCOMET/MetricX로 점수화하고 요약을 집계합니다.
+WMT24++ 데이터셋을 준비하고, vLLM(OpenAI 호환 API)로 번역을 생성한 뒤, XCOMET/MetricX/BLEU로 점수화하고 요약을 집계합니다.
 
 핵심 포인트:
 - **YAML 기반 구성**: 데이터/모델/메트릭은 `configs/`에 정의
@@ -244,6 +244,33 @@ WMT24++는 Hugging Face `google/wmt24pp`에서 내려받습니다.
 ./scripts/score.sh run1 xcomet_mqm wmt24pp en-ko_KR gpt_oss_120b
 ```
 
+### 8.3.1 문서 문맥(context) 스코어링 (DocCOMET 스타일)
+
+COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으로 문서 문맥을 반영합니다.
+이 리포지토리에서는 아래 두 메트릭 설정을 추가로 제공합니다:
+
+```bash
+# Reference 기반 (DocCOMET 스타일)
+./scripts/score.sh run1 xcomet_mqm_ctx wmt24pp en-ko_KR gpt_oss_120b
+
+# QE (reference 없음)
+./scripts/score.sh run1 xcomet_qe_ctx wmt24pp en-ko_KR gpt_oss_120b
+```
+
+- 문맥 구성: 같은 문서 내 **이전 N문장 + 현재 문장**을 separator로 연결
+- 문서 경계: `document_id`로 리셋
+- 문장 순서: `segment_id` → `no` → `idx` 순으로 자동 추정
+
+### 8.3.2 BLEU
+
+```bash
+./scripts/score.sh run1 bleu wmt24pp en-ko_KR gpt_oss_120b
+```
+
+- BLEU는 **sentence BLEU**를 각 세그먼트에 기록하고, **corpus BLEU**는
+  `*.system_score.txt`로 저장합니다.
+- 한국어(`ko`)는 `ko-mecab`, 중국어(`zh`)는 `asian_support=true`일 때 `zh` 토크나이저를 사용합니다.
+
 ### 8.4 집계
 
 ```bash
@@ -317,11 +344,26 @@ WMT24++는 Hugging Face `google/wmt24pp`에서 내려받습니다.
 
 예: `configs/metrics/xcomet_mqm.yaml`
 
-- `type`: `comet` 또는 `metricx`
+- `type`: `comet` / `metricx` / `bleu`
 - `mode`: `ref` 또는 `qe`
 - `direction`: `higher_is_better` / `lower_is_better`
+- (COMET) 문맥 옵션:
+  - `enable_context`: true/false
+  - `context_window`: 이전 문장 수 (예: 2)
+  - `context_separator`: 문장 구분 토큰 (예: `</s>`)
+  - `context_doc_field`: 문서 ID 필드명 (기본 `document_id`)
+  - `context_order_field`: 문장 순서 필드명 (미지정 시 `segment_id` → `no` → `idx`)
+  - `src_field`/`mt_field`/`ref_field`: 입력 필드명 오버라이드
+- (BLEU) 옵션:
+  - `case_sensitive`: 대소문자 구분 (true 권장)
+  - `tokenize`: 강제 토크나이저 (`ko-mecab`, `ja-mecab`, `zh`, `13a`)
+  - `asian_support`: `zh`일 때 `zh` 토크나이저 사용
+  - `effective_order`: 문장 길이에 따른 n-gram 차수 자동 조정 (sentence BLEU 권장)
+  - `mt_field`/`ref_field`: 입력 필드명 오버라이드
 
 주의: MetricX는 **낮을수록 좋음**이 기본입니다.
+
+BLEU에서 `ko-mecab`을 쓰려면 mecab-ko가 필요할 수 있습니다 (`pip install "sacrebleu[ko]"`).
 
 ---
 

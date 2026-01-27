@@ -4,6 +4,7 @@ import argparse
 
 from ..config import ROOT, load_metric_config
 from ..metrics.registry import METRIC_REGISTRY
+from ..metrics.bleu_metric import BleuMetric  # register side-effect
 from ..metrics.comet_metric import CometMetric  # register side-effect
 from ..metrics.metricx_metric import MetricXMetric  # register side-effect
 
