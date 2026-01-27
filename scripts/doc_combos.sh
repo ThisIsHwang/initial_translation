@@ -9,7 +9,16 @@ METRICS="${5:-xcomet_mqm,xcomet_qe,metricx24_ref,metricx24_qe,bleu}"
 API_BASE="${6:-http://localhost:8000/v1}"
 
 DOC_SUFFIX="${DOC_SUFFIX:-_doc}"
-DOC_SEP="${DOC_SEP:-</s>}"
+DOC_GEN_SEP="${DOC_GEN_SEP:-$'\n'}"
+DOC_SPLIT_SEP="${DOC_SPLIT_SEP:-$DOC_GEN_SEP}"
+
+# Allow common literal escape
+if [ "$DOC_GEN_SEP" = "\\n" ]; then
+  DOC_GEN_SEP=$'\n'
+fi
+if [ "$DOC_SPLIT_SEP" = "\\n" ]; then
+  DOC_SPLIT_SEP=$'\n'
+fi
 
 DOC_DATASET="${DATASET}${DOC_SUFFIX}"
 DOC_PREP_DIR="data/${DOC_DATASET}"
@@ -41,7 +50,7 @@ for LP in "${LP_LIST[@]}"; do
   uv run evalmt-docops to-doc \
     --input "$BASE_PATH" \
     --output "$DOC_PATH" \
-    --sep "$DOC_SEP" \
+    --sep "$DOC_GEN_SEP" \
     --fields "source,reference"
 done
 
@@ -90,14 +99,14 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     uv run evalmt-docops to-doc \
       --input "$SENT_GEN" \
       --output "$DOC_FROM_SENT" \
-      --sep "$DOC_SEP" \
+      --sep "$DOC_GEN_SEP" \
       --fields "source,reference,hypothesis"
 
     uv run evalmt-docops expand \
       --base "data/${DATASET}/${LP}.jsonl" \
       --doc "$DOC_GEN" \
       --output "$SENT_FROM_DOC" \
-      --sep "$DOC_SEP" \
+      --sep "$DOC_SPLIT_SEP" \
       --add-doc-hyp
   done
 

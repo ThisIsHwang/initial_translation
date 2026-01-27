@@ -289,7 +289,8 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - 결과 CSV:
   - `outputs/<run>/summary.csv`
   - `outputs/<run>/summary_combos.csv` (combo 컬럼 포함)
-- 문단 구성 separator는 `DOC_SEP`로 변경 가능 (기본 `</s>`).
+- 문단 구성 separator는 `DOC_GEN_SEP`로 변경 가능 (기본 `\\n`).
+- 문단 → 문장 분절 시 separator는 `DOC_SPLIT_SEP`로 변경 가능 (기본 `DOC_GEN_SEP`).
 - `API_BASE`가 `localhost`가 아니면 로컬 vLLM 서버는 자동 실행되지 않습니다.
 
 ### 8.4 집계
