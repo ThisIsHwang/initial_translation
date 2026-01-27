@@ -292,6 +292,9 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - 문단 구성 separator는 `DOC_GEN_SEP`로 변경 가능 (기본 `\\n`).
 - 문단 → 문장 분절 시 separator는 `DOC_SPLIT_SEP`로 변경 가능 (기본 `DOC_GEN_SEP`).
 - `API_BASE`가 `localhost`가 아니면 로컬 vLLM 서버는 자동 실행되지 않습니다.
+- 메트릭 분리: **sentence 평가(s→s, d→s)는 non-context**, **document 평가(s→d, d→d)는 context**로 실행됩니다.
+  - `*_ctx`가 context 메트릭으로 인식됩니다.
+  - BLEU/MetricX처럼 context가 없는 메트릭은 둘 다에서 평가됩니다.
 
 ### 8.4 집계
 

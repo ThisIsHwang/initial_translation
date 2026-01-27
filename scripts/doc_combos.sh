@@ -27,6 +27,35 @@ IFS=',' read -r -a LP_LIST <<< "$LPS"
 IFS=',' read -r -a MODEL_LIST <<< "$MODELS"
 IFS=',' read -r -a METRIC_LIST <<< "$METRICS"
 
+# Split metrics: sentence-eval uses non-context; doc-eval uses context (if provided).
+# Metrics without context (e.g., BLEU/MetricX) are evaluated for both.
+METRICS_SENT=()
+METRICS_DOC=()
+if [ -n "${METRICS_SENT_OVERRIDE:-}" ]; then
+  IFS=',' read -r -a METRICS_SENT <<< "$METRICS_SENT_OVERRIDE"
+fi
+if [ -n "${METRICS_DOC_OVERRIDE:-}" ]; then
+  IFS=',' read -r -a METRICS_DOC <<< "$METRICS_DOC_OVERRIDE"
+fi
+
+if [ "${#METRICS_SENT[@]}" -eq 0 ] || [ "${#METRICS_DOC[@]}" -eq 0 ]; then
+  for M in "${METRIC_LIST[@]}"; do
+    if [[ "$M" == *_ctx ]]; then
+      METRICS_DOC+=("$M")
+    else
+      METRICS_SENT+=("$M")
+      if [[ "$M" == metricx* || "$M" == bleu* ]]; then
+        METRICS_DOC+=("$M")
+      fi
+    fi
+  done
+fi
+
+if [ "${#METRICS_DOC[@]}" -eq 0 ]; then
+  echo "No context metrics provided; falling back to non-context for doc eval."
+  METRICS_DOC=("${METRICS_SENT[@]}")
+fi
+
 mkdir -p "$DOC_PREP_DIR"
 
 # Create doc dataset config if missing (generate uses prepared_dir)
@@ -115,16 +144,21 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   trap - EXIT || true
 
   # Scoring: 4 combos
-  for METRIC in "${METRIC_LIST[@]}"; do
-    for LP in "${LP_LIST[@]}"; do
+  for LP in "${LP_LIST[@]}"; do
+    # sentence evals (non-context)
+    for METRIC in "${METRICS_SENT[@]}"; do
       # sent -> sent
       ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "$MODEL_KEY"
+      # doc -> sent
+      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "${MODEL_KEY}__from_doc"
+    done
+
+    # document evals (context)
+    for METRIC in "${METRICS_DOC[@]}"; do
       # sent -> doc
       ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DOC_DATASET" "$LP" "${MODEL_KEY}__from_sent"
       # doc -> doc
       ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DOC_DATASET" "$LP" "$MODEL_KEY"
-      # doc -> sent
-      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "${MODEL_KEY}__from_doc"
     done
   done
 done
