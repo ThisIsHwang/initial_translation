@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..utils.jsonl import iter_jsonl, write_jsonl
+from ..align.labse_align import AlignConfig, align_with_labse
 
 
 def _normalize_text(value: Any) -> str:
@@ -240,6 +241,9 @@ def cmd_expand(args: argparse.Namespace) -> None:
     sent_hyps: List[str] = ["" for _ in base_rows]
     doc_split_status: List[str] = ["" for _ in base_rows]
     doc_hyps: List[str] = ["" for _ in base_rows]
+    align_scores: List[Optional[float]] = [None for _ in base_rows]
+    align_spans: List[Optional[Tuple[int, int]]] = [None for _ in base_rows]
+    align_low_conf: List[Optional[bool]] = [None for _ in base_rows]
 
     for doc_idx, doc_id in enumerate(doc_order):
         idxs = groups[doc_id]
@@ -249,19 +253,50 @@ def cmd_expand(args: argparse.Namespace) -> None:
             doc_row = doc_rows[doc_idx] if doc_idx < len(doc_rows) else {}
 
         doc_hyp = _normalize_text(doc_row.get(args.hyp_field))
-        parts = _split_text(
-            doc_hyp,
-            sep=args.sep,
-            splitter=args.splitter,
-            regex=args.regex,
-            marker_regex=args.marker_regex,
-        )
-        aligned, status = _align_segments(parts, len(idxs), marker_regex=args.marker_regex)
+        if args.align_mode == "labse":
+            src_sents = [base_rows[i].get("source", "") for i in idxs]
+            attach_remaining = bool(args.align_attach_remaining_to_last)
+            if args.align_no_attach_remaining:
+                attach_remaining = False
 
-        for i, idx in enumerate(idxs):
-            sent_hyps[idx] = aligned[i] if i < len(aligned) else ""
-            doc_split_status[idx] = status
-            doc_hyps[idx] = doc_hyp
+            cfg = AlignConfig(
+                model_name=args.align_model,
+                device=args.align_device or None,
+                batch_size=args.align_batch_size,
+                seed=args.align_seed,
+                max_chars=args.align_max_chars,
+                min_tokens=args.align_min_tokens,
+                min_chars=args.align_min_chars,
+                max_merge_chunks=args.align_max_merge_chunks,
+                max_merge_chars=args.align_max_merge_chars,
+                attach_remaining_to_last=attach_remaining,
+                allow_n_to_1=args.align_allow_n_to_1,
+                low_conf_threshold=args.align_low_conf_threshold,
+            )
+            aligned_rows, _doc_score = align_with_labse(src_sents, doc_hyp, config=cfg)
+            for i, idx in enumerate(idxs):
+                row = aligned_rows[i] if i < len(aligned_rows) else None
+                sent_hyps[idx] = (row.get("hyp") if row else "") or ""
+                doc_split_status[idx] = "labse"
+                doc_hyps[idx] = doc_hyp
+                if args.align_meta and row:
+                    align_scores[idx] = float(row.get("score", 0.0))
+                    align_spans[idx] = tuple(row.get("hyp_span", (0, -1)))
+                    align_low_conf[idx] = bool(row.get("low_conf", False))
+        else:
+            parts = _split_text(
+                doc_hyp,
+                sep=args.sep,
+                splitter=args.splitter,
+                regex=args.regex,
+                marker_regex=args.marker_regex,
+            )
+            aligned, status = _align_segments(parts, len(idxs), marker_regex=args.marker_regex)
+
+            for i, idx in enumerate(idxs):
+                sent_hyps[idx] = aligned[i] if i < len(aligned) else ""
+                doc_split_status[idx] = status
+                doc_hyps[idx] = doc_hyp
 
     out_rows: List[Dict[str, Any]] = []
     for i, r in enumerate(base_rows):
@@ -270,6 +305,13 @@ def cmd_expand(args: argparse.Namespace) -> None:
         if args.add_doc_hyp:
             rr["doc_hypothesis"] = doc_hyps[i]
             rr["doc_split_status"] = doc_split_status[i]
+        if args.align_meta:
+            if align_scores[i] is not None:
+                rr["align_score"] = align_scores[i]
+            if align_spans[i] is not None:
+                rr["align_span"] = align_spans[i]
+            if align_low_conf[i] is not None:
+                rr["align_low_conf"] = align_low_conf[i]
         out_rows.append(rr)
 
     write_jsonl(out_path, out_rows, append=False)
@@ -326,6 +368,21 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--regex", default=None)
     p_exp.add_argument("--marker-regex", default=None)
     p_exp.add_argument("--add-doc-hyp", action="store_true")
+    p_exp.add_argument("--align-mode", choices=["rule", "labse"], default="rule")
+    p_exp.add_argument("--align-meta", action="store_true")
+    p_exp.add_argument("--align-model", default="sentence-transformers/LaBSE")
+    p_exp.add_argument("--align-device", default=None)
+    p_exp.add_argument("--align-batch-size", type=int, default=32)
+    p_exp.add_argument("--align-seed", type=int, default=42)
+    p_exp.add_argument("--align-max-chars", type=int, default=320)
+    p_exp.add_argument("--align-min-tokens", type=int, default=4)
+    p_exp.add_argument("--align-min-chars", type=int, default=12)
+    p_exp.add_argument("--align-max-merge-chunks", type=int, default=6)
+    p_exp.add_argument("--align-max-merge-chars", type=int, default=1000)
+    p_exp.add_argument("--align-attach-remaining-to-last", action="store_true")
+    p_exp.add_argument("--align-no-attach-remaining", action="store_true")
+    p_exp.add_argument("--align-allow-n-to-1", action="store_true")
+    p_exp.add_argument("--align-low-conf-threshold", type=float, default=0.55)
 
     p_clean = sub.add_parser("clean")
     p_clean.add_argument("--input", required=True)

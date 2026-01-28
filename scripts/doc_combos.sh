@@ -18,6 +18,8 @@ DOC_MARKER_JOIN="${DOC_MARKER_JOIN:- }"
 DOC_MARKER_FIELDS="${DOC_MARKER_FIELDS:-source}"
 DOC_MARKER_REGEX="${DOC_MARKER_REGEX:-⟦\\d+⟧}"
 DOC_MARKER_KEEP_RAW="${DOC_MARKER_KEEP_RAW:-1}"
+DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-rule}"
+DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
 
 # Allow common literal escape
 if [ "$DOC_GEN_SEP" = "\\n" ]; then
@@ -230,7 +232,9 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       --sep "$DOC_SPLIT_SEP" \
       --splitter "$SPLITTER" \
       --marker-regex "$DOC_MARKER_REGEX" \
-      --add-doc-hyp
+      --add-doc-hyp \
+      --align-mode "$DOC_ALIGN_MODE" \
+      $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" )
 
     if [ "$DOC_MARKER_ENABLE" = "1" ]; then
       if [ -f "$DOC_GEN" ]; then

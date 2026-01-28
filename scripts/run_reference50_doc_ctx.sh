@@ -28,6 +28,8 @@ DOC_MARKER_TEMPLATE="${DOC_MARKER_TEMPLATE:-⟦{i}⟧}"
 DOC_MARKER_JOIN="${DOC_MARKER_JOIN:- }"
 DOC_MARKER_FIELDS="${DOC_MARKER_FIELDS:-source}"
 DOC_MARKER_REGEX="${DOC_MARKER_REGEX:-⟦\\d+⟧}"
+DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-rule}"
+DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
 
 if [ "$DOC_GEN_SEP" = "\\n" ]; then
   DOC_GEN_SEP=$'\n'
@@ -134,7 +136,9 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       --sep "$DOC_SPLIT_SEP" \
       --splitter "$SPLITTER" \
       --marker-regex "$DOC_MARKER_REGEX" \
-      --add-doc-hyp
+      --add-doc-hyp \
+      --align-mode "$DOC_ALIGN_MODE" \
+      $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" )
   done
 
   cleanup
