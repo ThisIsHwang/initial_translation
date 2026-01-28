@@ -95,17 +95,12 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   cleanup() {
     if [ -n "$SERVER_PID" ]; then
       echo "Stopping server PID=$SERVER_PID"
-      kill "$SERVER_PID" 2>/dev/null || true
+      pkill -TERM -P "$SERVER_PID" 2>/dev/null || true
+      kill -TERM "$SERVER_PID" 2>/dev/null || true
       sleep 2
       if kill -0 "$SERVER_PID" 2>/dev/null; then
-        kill -9 "$SERVER_PID" 2>/dev/null || true
-      fi
-    fi
-    if command -v lsof >/dev/null 2>&1; then
-      PIDS=$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)
-      if [ -n "$PIDS" ]; then
-        echo "Killing listeners on port $PORT: $PIDS"
-        kill $PIDS 2>/dev/null || true
+        pkill -KILL -P "$SERVER_PID" 2>/dev/null || true
+        kill -KILL "$SERVER_PID" 2>/dev/null || true
       fi
     fi
   }
