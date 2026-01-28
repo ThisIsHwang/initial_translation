@@ -76,6 +76,9 @@ def _build_doc_rows(
     *,
     fields: List[str],
     sep: str,
+    marker_template: Optional[str],
+    marker_join: str,
+    marker_fields: List[str],
     doc_field: str,
     order_field: Optional[str],
     include_segment_ids: bool,
@@ -93,7 +96,14 @@ def _build_doc_rows(
 
         for field in fields:
             parts = [_normalize_text(rows[i].get(field)) for i in idxs]
-            base[field] = _join_with_sep(parts, sep)
+            if marker_template and field in marker_fields:
+                out = parts[0] if parts else ""
+                for k, part in enumerate(parts[1:], start=1):
+                    marker = marker_template.format(i=k)
+                    out = f"{out}{marker_join}{marker}{marker_join}{part}" if out else part
+                base[field] = out
+            else:
+                base[field] = _join_with_sep(parts, sep)
 
         base["segment_count"] = len(idxs)
         if include_segment_ids:
@@ -112,10 +122,19 @@ def _split_text(
     sep: str,
     splitter: str,
     regex: Optional[str],
+    marker_regex: Optional[str],
 ) -> List[str]:
     text = (text or "").strip()
     if not text:
         return []
+
+    if splitter == "marker" and marker_regex:
+        parts = [p.strip() for p in re.split(marker_regex, text) if p.strip()]
+        return parts
+
+    if splitter == "auto" and marker_regex and re.search(marker_regex, text):
+        parts = [p.strip() for p in re.split(marker_regex, text) if p.strip()]
+        return parts
 
     if splitter in ("auto", "sep") and sep and sep in text:
         parts = [p.strip() for p in text.split(sep)]
@@ -135,7 +154,9 @@ def _split_text(
     return [p for p in parts if p]
 
 
-def _align_segments(parts: List[str], target_n: int) -> Tuple[List[str], str]:
+def _align_segments(parts: List[str], target_n: int, *, marker_regex: Optional[str]) -> Tuple[List[str], str]:
+    if marker_regex:
+        parts = [re.sub(marker_regex, "", p).strip() for p in parts]
     if target_n <= 0:
         return [], "empty"
     if len(parts) == target_n:
@@ -169,10 +190,15 @@ def cmd_to_doc(args: argparse.Namespace) -> None:
         if any(f not in r for r in rows):
             raise KeyError(f"Missing '{f}' in some rows of {in_path}")
 
+    marker_fields = [x.strip() for x in (args.marker_fields or "").split(",") if x.strip()]
+
     doc_rows = _build_doc_rows(
         rows,
         fields=fields,
         sep=args.sep,
+        marker_template=args.marker_template,
+        marker_join=args.marker_join,
+        marker_fields=marker_fields,
         doc_field=args.doc_field,
         order_field=args.order_field,
         include_segment_ids=args.include_segment_ids,
@@ -225,8 +251,9 @@ def cmd_expand(args: argparse.Namespace) -> None:
             sep=args.sep,
             splitter=args.splitter,
             regex=args.regex,
+            marker_regex=args.marker_regex,
         )
-        aligned, status = _align_segments(parts, len(idxs))
+        aligned, status = _align_segments(parts, len(idxs), marker_regex=args.marker_regex)
 
         for i, idx in enumerate(idxs):
             sent_hyps[idx] = aligned[i] if i < len(aligned) else ""
@@ -246,6 +273,28 @@ def cmd_expand(args: argparse.Namespace) -> None:
     print(f"✅ expanded jsonl -> {out_path} (rows={len(out_rows)})")
 
 
+def cmd_clean(args: argparse.Namespace) -> None:
+    in_path = Path(args.input)
+    out_path = Path(args.output)
+    rows = list(iter_jsonl(in_path))
+    if not rows:
+        raise ValueError(f"No rows in {in_path}")
+
+    fields = [f.strip() for f in args.fields.split(",") if f.strip()]
+    rx = re.compile(args.marker_regex) if args.marker_regex else None
+
+    out_rows: List[Dict[str, Any]] = []
+    for r in rows:
+        rr = dict(r)
+        for f in fields:
+            if f in rr and isinstance(rr[f], str) and rx:
+                rr[f] = re.sub(rx, "", rr[f]).strip()
+        out_rows.append(rr)
+
+    write_jsonl(out_path, out_rows, append=False)
+    print(f"✅ cleaned jsonl -> {out_path} (rows={len(out_rows)})")
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -258,6 +307,9 @@ def parse_args() -> argparse.Namespace:
     p_doc.add_argument("--order-field", default=None)
     p_doc.add_argument("--fields", default=None, help="comma-separated fields to concat")
     p_doc.add_argument("--include-segment-ids", action="store_true")
+    p_doc.add_argument("--marker-template", default=None, help="e.g., ⟦{i}⟧")
+    p_doc.add_argument("--marker-join", default=" ")
+    p_doc.add_argument("--marker-fields", default=None, help="fields to insert markers into")
 
     p_exp = sub.add_parser("expand")
     p_exp.add_argument("--base", required=True, help="sentence-level base jsonl")
@@ -267,9 +319,16 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--doc-field", default="document_id")
     p_exp.add_argument("--order-field", default=None)
     p_exp.add_argument("--hyp-field", default="hypothesis")
-    p_exp.add_argument("--splitter", choices=["auto", "sep", "regex"], default="auto")
+    p_exp.add_argument("--splitter", choices=["auto", "sep", "regex", "marker"], default="auto")
     p_exp.add_argument("--regex", default=None)
+    p_exp.add_argument("--marker-regex", default=None)
     p_exp.add_argument("--add-doc-hyp", action="store_true")
+
+    p_clean = sub.add_parser("clean")
+    p_clean.add_argument("--input", required=True)
+    p_clean.add_argument("--output", required=True)
+    p_clean.add_argument("--marker-regex", default=r"⟦\d+⟧")
+    p_clean.add_argument("--fields", default="source,reference,hypothesis")
 
     return p.parse_args()
 
@@ -280,6 +339,8 @@ def main() -> None:
         cmd_to_doc(args)
     elif args.cmd == "expand":
         cmd_expand(args)
+    elif args.cmd == "clean":
+        cmd_clean(args)
     else:
         raise SystemExit(f"Unknown cmd: {args.cmd}")
 

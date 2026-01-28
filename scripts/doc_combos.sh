@@ -12,6 +12,12 @@ MANAGE_SERVER="${MANAGE_SERVER:-0}"
 DOC_SUFFIX="${DOC_SUFFIX:-_doc}"
 DOC_GEN_SEP="${DOC_GEN_SEP:-$'\n'}"
 DOC_SPLIT_SEP="${DOC_SPLIT_SEP:-$DOC_GEN_SEP}"
+DOC_MARKER_ENABLE="${DOC_MARKER_ENABLE:-1}"
+DOC_MARKER_TEMPLATE="${DOC_MARKER_TEMPLATE:-⟦{i}⟧}"
+DOC_MARKER_JOIN="${DOC_MARKER_JOIN:- }"
+DOC_MARKER_FIELDS="${DOC_MARKER_FIELDS:-source}"
+DOC_MARKER_REGEX="${DOC_MARKER_REGEX:-⟦\\d+⟧}"
+DOC_MARKER_KEEP_RAW="${DOC_MARKER_KEEP_RAW:-1}"
 
 # Allow common literal escape
 if [ "$DOC_GEN_SEP" = "\\n" ]; then
@@ -121,11 +127,22 @@ for LP in "${LP_LIST[@]}"; do
     exit 1
   fi
   DOC_PATH="${DOC_PREP_DIR}/${LP}.jsonl"
-  uv run evalmt-docops to-doc \
-    --input "$BASE_PATH" \
-    --output "$DOC_PATH" \
-    --sep "$DOC_GEN_SEP" \
-    --fields "source,reference"
+  if [ "$DOC_MARKER_ENABLE" = "1" ]; then
+    uv run evalmt-docops to-doc \
+      --input "$BASE_PATH" \
+      --output "$DOC_PATH" \
+      --sep "$DOC_GEN_SEP" \
+      --fields "source,reference" \
+      --marker-template "$DOC_MARKER_TEMPLATE" \
+      --marker-join "$DOC_MARKER_JOIN" \
+      --marker-fields "$DOC_MARKER_FIELDS"
+  else
+    uv run evalmt-docops to-doc \
+      --input "$BASE_PATH" \
+      --output "$DOC_PATH" \
+      --sep "$DOC_GEN_SEP" \
+      --fields "source,reference"
+  fi
 done
 
 for MODEL_KEY in "${MODEL_LIST[@]}"; do
@@ -187,6 +204,7 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   for LP in "${LP_LIST[@]}"; do
     SENT_GEN="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}.jsonl"
     DOC_GEN="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}.jsonl"
+    DOC_GEN_RAW="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}__raw.jsonl"
     DOC_FROM_SENT="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
     SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_doc.jsonl"
 
@@ -196,12 +214,40 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       --sep "$DOC_GEN_SEP" \
       --fields "source,reference,hypothesis"
 
+    DOC_FOR_EXP="$DOC_GEN"
+    if [ "$DOC_MARKER_ENABLE" = "1" ] && [ -f "$DOC_GEN_RAW" ]; then
+      DOC_FOR_EXP="$DOC_GEN_RAW"
+    fi
+    SPLITTER="auto"
+    if [ "$DOC_MARKER_ENABLE" = "1" ]; then
+      SPLITTER="marker"
+    fi
+
     uv run evalmt-docops expand \
       --base "data/${DATASET}/${LP}.jsonl" \
-      --doc "$DOC_GEN" \
+      --doc "$DOC_FOR_EXP" \
       --output "$SENT_FROM_DOC" \
       --sep "$DOC_SPLIT_SEP" \
+      --splitter "$SPLITTER" \
+      --marker-regex "$DOC_MARKER_REGEX" \
       --add-doc-hyp
+
+    if [ "$DOC_MARKER_ENABLE" = "1" ]; then
+      if [ -f "$DOC_GEN" ]; then
+        if [ "$DOC_MARKER_KEEP_RAW" = "1" ] && [ ! -f "$DOC_GEN_RAW" ]; then
+          mv "$DOC_GEN" "$DOC_GEN_RAW"
+        fi
+        RAW_IN="$DOC_GEN"
+        if [ -f "$DOC_GEN_RAW" ]; then
+          RAW_IN="$DOC_GEN_RAW"
+        fi
+        uv run evalmt-docops clean \
+          --input "$RAW_IN" \
+          --output "$DOC_GEN" \
+          --marker-regex "$DOC_MARKER_REGEX" \
+          --fields "source,reference,hypothesis"
+      fi
+    fi
   done
 
   # Stop vLLM before scoring (avoid GPU contention)

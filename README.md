@@ -294,6 +294,10 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - `MANAGE_SERVER=1`일 때만 로컬 vLLM 서버를 자동 실행/종료합니다. (기본값 0)
 - 이미 생성 결과가 모두 있으면 vLLM은 띄우지 않고 generation을 건너뜁니다.
 - `CLEAN_GPU=1`이면 스코어링 전에 GPU 점유 프로세스를 종료합니다. (기본값 1)
+- 문서 번역 정렬용 마커:
+  - `DOC_MARKER_ENABLE=1`이면 source 문장 사이에 `⟦i⟧` 마커를 삽입합니다.
+  - 문서 번역을 다시 문장으로 나눌 때는 마커 기준으로 split하고, 평가 전 마커를 제거합니다.
+  - 관련 옵션: `DOC_MARKER_TEMPLATE`, `DOC_MARKER_JOIN`, `DOC_MARKER_FIELDS`, `DOC_MARKER_REGEX`, `DOC_MARKER_KEEP_RAW`
 - 스코어링 방식:
   - **s→s, d→s**: non‑context 메트릭으로 문장 단위 평가
   - **s→d, d→d**: context 메트릭으로 문장 단위 평가 (문서 점수는 문서 내 문장 점수 평균)
