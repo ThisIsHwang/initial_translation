@@ -183,25 +183,18 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     echo "All generation outputs already exist for $MODEL_KEY; skipping generation."
   fi
 
-  # Derive doc-gen from sentence-gen + expand doc-gen to sentence
+  # Derive doc-gen from sentence-gen + expand doc-gen to sentence (doc->sent only)
   for LP in "${LP_LIST[@]}"; do
     SENT_GEN="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}.jsonl"
     DOC_GEN="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}.jsonl"
     DOC_FROM_SENT="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
     SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_doc.jsonl"
-    SENT_FROM_SENT="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
 
     uv run evalmt-docops to-doc \
       --input "$SENT_GEN" \
       --output "$DOC_FROM_SENT" \
       --sep "$DOC_GEN_SEP" \
       --fields "source,reference,hypothesis"
-
-    uv run evalmt-docops expand \
-      --base "data/${DATASET}/${LP}.jsonl" \
-      --doc "$DOC_FROM_SENT" \
-      --output "$SENT_FROM_SENT" \
-      --sep "$DOC_GEN_SEP"
 
     uv run evalmt-docops expand \
       --base "data/${DATASET}/${LP}.jsonl" \
@@ -217,7 +210,6 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
 
   # Scoring: 4 combos
   for LP in "${LP_LIST[@]}"; do
-    SENT_FROM_SENT="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
     SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_doc.jsonl"
 
     # sentence evals (non-context)
@@ -230,10 +222,15 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
 
     # document evals (context)
     for METRIC in "${METRICS_DOC[@]}"; do
-      # sent -> doc
-      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "${MODEL_KEY}__from_sent"
+      # sent -> doc (context on sentence data)
+      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "$MODEL_KEY"
       # doc -> doc
       ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "${MODEL_KEY}__from_doc"
+    done
+
+    # document evals (non-context) for doc input -> doc eval
+    for METRIC in "${METRICS_SENT[@]}"; do
+      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DOC_DATASET" "$LP" "$MODEL_KEY"
     done
   done
 done
