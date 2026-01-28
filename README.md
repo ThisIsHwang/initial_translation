@@ -340,6 +340,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - `scripts/run_all.sh`: 전체 파이프라인 실행
 - `scripts/doc_combos.sh`: 문장/문단 4조합 평가
 - `scripts/clean_gpu.sh`: 스코어링 전 GPU 점유 프로세스 종료 (옵션)
+- `scripts/run_reference50_doc_ctx.sh`: reference50 문단 번역 → 문장 분절 → context 스코어링
 
 ### CLI 엔트리포인트
 
