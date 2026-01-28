@@ -97,10 +97,13 @@ def _build_doc_rows(
         for field in fields:
             parts = [_normalize_text(rows[i].get(field)) for i in idxs]
             if marker_template and field in marker_fields:
-                out = parts[0] if parts else ""
-                for k, part in enumerate(parts[1:], start=1):
+                out = ""
+                for k, part in enumerate(parts, start=1):
                     marker = marker_template.format(i=k)
-                    out = f"{out}{marker_join}{marker}{marker_join}{part}" if out else part
+                    if out:
+                        out = f"{out}{marker_join}{marker}{marker_join}{part}"
+                    else:
+                        out = f"{marker}{marker_join}{part}" if marker_join else f"{marker}{part}"
                 base[field] = out
             else:
                 base[field] = _join_with_sep(parts, sep)
