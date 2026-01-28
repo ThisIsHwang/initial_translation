@@ -16,14 +16,21 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def infer_combo(dataset: str, model: str, *, doc_suffix: str) -> tuple[str, str, str]:
-    eval_level = "doc" if dataset.endswith(doc_suffix) else "sent"
+def infer_combo(dataset: str, model: str, metric: str, *, doc_suffix: str) -> tuple[str, str, str]:
+    # Eval level is driven by context metrics (ctx => doc-level scoring context).
+    eval_level = "doc" if metric.endswith("_ctx") else "sent"
+
     if model.endswith("__from_doc"):
         gen_level = "doc"
     elif model.endswith("__from_sent"):
         gen_level = "sent"
     else:
-        gen_level = eval_level
+        gen_level = "sent"
+
+    # If dataset is an explicit doc dataset, override eval_level to doc.
+    if dataset.endswith(doc_suffix):
+        eval_level = "doc"
+
     combo = f"{gen_level}->{eval_level}"
     return gen_level, eval_level, combo
 
@@ -46,6 +53,7 @@ def main() -> None:
         gen_level, eval_level, combo = infer_combo(
             str(row.get("dataset", "")),
             str(row.get("model", "")),
+            str(row.get("metric", "")),
             doc_suffix=args.doc_suffix,
         )
         gen_levels.append(gen_level)

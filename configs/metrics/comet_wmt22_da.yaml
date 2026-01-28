@@ -1,0 +1,8 @@
+# Reference-based COMET (WMT22 DA)
+type: comet
+mode: ref
+model: Unbabel/wmt22-comet-da
+
+direction: higher_is_better
+batch_size: 8
+gpus: 1

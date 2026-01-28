@@ -293,9 +293,10 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - 문단 → 문장 분절 시 separator는 `DOC_SPLIT_SEP`로 변경 가능 (기본 `DOC_GEN_SEP`).
 - `MANAGE_SERVER=1`일 때만 로컬 vLLM 서버를 자동 실행/종료합니다. (기본값 0)
 - 이미 생성 결과가 모두 있으면 vLLM은 띄우지 않고 generation을 건너뜁니다.
-- 메트릭 분리: **sentence 평가(s→s, d→s)는 non-context**, **document 평가(s→d, d→d)는 context**로 실행됩니다.
+- 스코어링 방식:
+  - **s→s, d→s**: non‑context 메트릭으로 문장 단위 평가
+  - **s→d, d→d**: context 메트릭으로 문장 단위 평가 (문서 점수는 문서 내 문장 점수 평균)
   - `*_ctx`가 context 메트릭으로 인식됩니다.
-  - BLEU/MetricX처럼 context가 없는 메트릭은 둘 다에서 평가됩니다.
 
 ### 8.4 집계
 

@@ -92,9 +92,6 @@ if [ "${#METRICS_SENT[@]}" -eq 0 ] || [ "${#METRICS_DOC[@]}" -eq 0 ]; then
       METRICS_DOC+=("$M")
     else
       METRICS_SENT+=("$M")
-      if [[ "$M" == metricx* || "$M" == bleu* ]]; then
-        METRICS_DOC+=("$M")
-      fi
     fi
   done
 fi
@@ -192,12 +189,19 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     DOC_GEN="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}.jsonl"
     DOC_FROM_SENT="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
     SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_doc.jsonl"
+    SENT_FROM_SENT="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
 
     uv run evalmt-docops to-doc \
       --input "$SENT_GEN" \
       --output "$DOC_FROM_SENT" \
       --sep "$DOC_GEN_SEP" \
       --fields "source,reference,hypothesis"
+
+    uv run evalmt-docops expand \
+      --base "data/${DATASET}/${LP}.jsonl" \
+      --doc "$DOC_FROM_SENT" \
+      --output "$SENT_FROM_SENT" \
+      --sep "$DOC_GEN_SEP"
 
     uv run evalmt-docops expand \
       --base "data/${DATASET}/${LP}.jsonl" \
@@ -213,6 +217,9 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
 
   # Scoring: 4 combos
   for LP in "${LP_LIST[@]}"; do
+    SENT_FROM_SENT="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
+    SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_doc.jsonl"
+
     # sentence evals (non-context)
     for METRIC in "${METRICS_SENT[@]}"; do
       # sent -> sent
@@ -224,9 +231,9 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     # document evals (context)
     for METRIC in "${METRICS_DOC[@]}"; do
       # sent -> doc
-      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DOC_DATASET" "$LP" "${MODEL_KEY}__from_sent"
+      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "${MODEL_KEY}__from_sent"
       # doc -> doc
-      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DOC_DATASET" "$LP" "$MODEL_KEY"
+      ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DATASET" "$LP" "${MODEL_KEY}__from_doc"
     done
   done
 done
