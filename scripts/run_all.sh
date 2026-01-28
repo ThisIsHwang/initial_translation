@@ -39,6 +39,17 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   cleanup() {
     echo "Stopping server PID=$SERVER_PID"
     kill "$SERVER_PID" 2>/dev/null || true
+    sleep 2
+    if kill -0 "$SERVER_PID" 2>/dev/null; then
+      kill -9 "$SERVER_PID" 2>/dev/null || true
+    fi
+    if command -v lsof >/dev/null 2>&1; then
+      PIDS=$(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null || true)
+      if [ -n "$PIDS" ]; then
+        echo "Killing listeners on port 8000: $PIDS"
+        kill $PIDS 2>/dev/null || true
+      fi
+    fi
   }
   trap cleanup EXIT
 
