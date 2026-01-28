@@ -208,6 +208,10 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   cleanup
   trap - EXIT || true
 
+  if [ "${CLEAN_GPU:-1}" = "1" ]; then
+    ./scripts/clean_gpu.sh
+  fi
+
   # Scoring: 4 combos
   for LP in "${LP_LIST[@]}"; do
     SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}__from_doc.jsonl"

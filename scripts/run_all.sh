@@ -72,6 +72,10 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   # ------------------------------------------------------------
   # Phase B: scoring after vLLM is stopped
   # ------------------------------------------------------------
+  if [ "${CLEAN_GPU:-1}" = "1" ]; then
+    ./scripts/clean_gpu.sh
+  fi
+
   for METRIC in "${METRIC_LIST[@]}"; do
     for LP in "${LP_LIST[@]}"; do
       echo "=== Score: metric=$METRIC model=$MODEL_KEY lp=$LP ==="

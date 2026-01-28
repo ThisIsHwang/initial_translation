@@ -21,13 +21,15 @@ class CometMetric(BaseMetric):
         return str(value).strip()
 
     @staticmethod
-    def _join_with_sep(parts: List[str], sep: str) -> str:
+    def _join_with_sep(parts: List[str], sep: str, *, add_space: bool) -> str:
         parts = [p for p in parts if p]
         if not parts:
             return ""
         if not sep:
             return " ".join(parts)
-        return f" {sep} ".join(parts)
+        if add_space:
+            return f" {sep} ".join(parts)
+        return sep.join(parts)
 
     @staticmethod
     def _infer_order_field(rows: List[Dict[str, Any]], order_field: Optional[str]) -> Optional[str]:
@@ -44,6 +46,10 @@ class CometMetric(BaseMetric):
         *,
         window: int,
         sep: str,
+        sep_with_spaces: bool,
+        append_current: bool,
+        append_delim: str,
+        append_only_if_context: bool,
         doc_field: str,
         order_field: Optional[str],
         src_field: str,
@@ -55,11 +61,22 @@ class CometMetric(BaseMetric):
         ctx_mt = [""] * n
         ctx_ref = [""] * n
 
+        def _maybe_append(seq: str, cur: str, has_context: bool) -> str:
+            if not append_current or not cur:
+                return seq
+            if append_only_if_context and not has_context:
+                return seq
+            delim = append_delim if append_delim is not None else "\n"
+            return f"{seq}{delim}{cur}" if seq else cur
+
         if window <= 0:
             for i, r in enumerate(rows):
-                ctx_src[i] = self._normalize_text(r.get(src_field))
-                ctx_mt[i] = self._normalize_text(r.get(mt_field))
-                ctx_ref[i] = self._normalize_text(r.get(ref_field))
+                cur_src = self._normalize_text(r.get(src_field))
+                cur_mt = self._normalize_text(r.get(mt_field))
+                cur_ref = self._normalize_text(r.get(ref_field))
+                ctx_src[i] = _maybe_append(cur_src, cur_src, False)
+                ctx_mt[i] = _maybe_append(cur_mt, cur_mt, False)
+                ctx_ref[i] = _maybe_append(cur_ref, cur_ref, False)
             return ctx_src, ctx_mt, ctx_ref
 
         has_doc_field = doc_field and any(r.get(doc_field) is not None for r in rows)
@@ -94,9 +111,18 @@ class CometMetric(BaseMetric):
                 mt_parts.append(self._normalize_text(rows[idx].get(mt_field)))
                 ref_parts.append(self._normalize_text(rows[idx].get(ref_field)))
 
-                ctx_src[idx] = self._join_with_sep(src_parts, sep)
-                ctx_mt[idx] = self._join_with_sep(mt_parts, sep)
-                ctx_ref[idx] = self._join_with_sep(ref_parts, sep)
+                has_context = len(ctx_idxs) > 0
+                cur_src = self._normalize_text(rows[idx].get(src_field))
+                cur_mt = self._normalize_text(rows[idx].get(mt_field))
+                cur_ref = self._normalize_text(rows[idx].get(ref_field))
+
+                src_seq = self._join_with_sep(src_parts, sep, add_space=sep_with_spaces)
+                mt_seq = self._join_with_sep(mt_parts, sep, add_space=sep_with_spaces)
+                ref_seq = self._join_with_sep(ref_parts, sep, add_space=sep_with_spaces)
+
+                ctx_src[idx] = _maybe_append(src_seq, cur_src, has_context)
+                ctx_mt[idx] = _maybe_append(mt_seq, cur_mt, has_context)
+                ctx_ref[idx] = _maybe_append(ref_seq, cur_ref, has_context)
 
         return ctx_src, ctx_mt, ctx_ref
 
@@ -109,6 +135,10 @@ class CometMetric(BaseMetric):
         enable_context = bool(self.cfg.get("enable_context", False))
         context_window = int(self.cfg.get("context_window", 0))
         context_sep = str(self.cfg.get("context_separator", "</s>"))
+        context_sep_with_spaces = bool(self.cfg.get("context_separator_with_spaces", True))
+        context_append_current = bool(self.cfg.get("context_append_current", False))
+        context_append_delim = str(self.cfg.get("context_append_delimiter", "\n"))
+        context_append_only_if_context = bool(self.cfg.get("context_append_only_if_context", False))
         context_doc_field = str(self.cfg.get("context_doc_field", "document_id"))
         context_order_field = self.cfg.get("context_order_field", None)
         src_field = str(self.cfg.get("src_field", "source"))
@@ -138,6 +168,10 @@ class CometMetric(BaseMetric):
             rows,
             window=context_window,
             sep=context_sep,
+            sep_with_spaces=context_sep_with_spaces,
+            append_current=context_append_current,
+            append_delim=context_append_delim,
+            append_only_if_context=context_append_only_if_context,
             doc_field=context_doc_field,
             order_field=context_order_field,
             src_field=src_field,

@@ -293,6 +293,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - 문단 → 문장 분절 시 separator는 `DOC_SPLIT_SEP`로 변경 가능 (기본 `DOC_GEN_SEP`).
 - `MANAGE_SERVER=1`일 때만 로컬 vLLM 서버를 자동 실행/종료합니다. (기본값 0)
 - 이미 생성 결과가 모두 있으면 vLLM은 띄우지 않고 generation을 건너뜁니다.
+- `CLEAN_GPU=1`이면 스코어링 전에 GPU 점유 프로세스를 종료합니다. (기본값 1)
 - 스코어링 방식:
   - **s→s, d→s**: non‑context 메트릭으로 문장 단위 평가
   - **s→d, d→d**: context 메트릭으로 문장 단위 평가 (문서 점수는 문서 내 문장 점수 평균)
@@ -334,6 +335,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - `scripts/aggregate.sh`: 요약 CSV 생성
 - `scripts/run_all.sh`: 전체 파이프라인 실행
 - `scripts/doc_combos.sh`: 문장/문단 4조합 평가
+- `scripts/clean_gpu.sh`: 스코어링 전 GPU 점유 프로세스 종료 (옵션)
 
 ### CLI 엔트리포인트
 
@@ -383,6 +385,10 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - `enable_context`: true/false
   - `context_window`: 이전 문장 수 (예: 2)
   - `context_separator`: 문장 구분 토큰 (예: `</s>`)
+  - `context_separator_with_spaces`: separator 앞뒤 공백 여부 (기본 true)
+  - `context_append_current`: 문장 끝에 현재 문장을 다시 붙일지 여부
+  - `context_append_delimiter`: 재부착 시 구분자 (기본 `\n`)
+  - `context_append_only_if_context`: 문맥이 있을 때만 재부착
   - `context_doc_field`: 문서 ID 필드명 (기본 `document_id`)
   - `context_order_field`: 문장 순서 필드명 (미지정 시 `segment_id` → `no` → `idx`)
   - `src_field`/`mt_field`/`ref_field`: 입력 필드명 오버라이드
