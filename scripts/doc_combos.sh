@@ -7,6 +7,7 @@ LPS="${3:?LPS required (ex: en-ko_KR or en-ko_KR,en-ja_JP)}"
 MODELS="${4:?MODELS required (comma-separated)}"
 METRICS="${5:-xcomet_mqm,xcomet_qe,metricx24_ref,metricx24_qe,bleu}"
 API_BASE="${6:-http://localhost:8000/v1}"
+MANAGE_SERVER="${MANAGE_SERVER:-0}"
 
 DOC_SUFFIX="${DOC_SUFFIX:-_doc}"
 DOC_GEN_SEP="${DOC_GEN_SEP:-$'\n'}"
@@ -19,6 +20,53 @@ fi
 if [ "$DOC_SPLIT_SEP" = "\\n" ]; then
   DOC_SPLIT_SEP=$'\n'
 fi
+
+# Count non-empty jsonl lines (best-effort)
+jsonl_count() {
+  local path="$1"
+  if [ ! -f "$path" ]; then
+    echo "0"
+    return
+  fi
+  python3 - "$path" <<'PY'
+import sys
+path = sys.argv[1]
+cnt = 0
+with open(path, "r", encoding="utf-8") as f:
+    for line in f:
+        if line.strip():
+            cnt += 1
+print(cnt)
+PY
+}
+
+# Check if generation is needed for a model across all LPs
+needs_generation() {
+  local model_key="$1"
+  local need=0
+  for lp in "${LP_LIST[@]}"; do
+    local base_path="data/${DATASET}/${lp}.jsonl"
+    local doc_path="data/${DOC_DATASET}/${lp}.jsonl"
+    local sent_gen="outputs/${RUN_NAME}/gen/${DATASET}/${lp}/${model_key}.jsonl"
+    local doc_gen="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${lp}/${model_key}.jsonl"
+
+    local base_n
+    local doc_n
+    base_n=$(jsonl_count "$base_path")
+    doc_n=$(jsonl_count "$doc_path")
+
+    local sent_n
+    local doc_n_gen
+    sent_n=$(jsonl_count "$sent_gen")
+    doc_n_gen=$(jsonl_count "$doc_gen")
+
+    if [ "$sent_n" -lt "$base_n" ] || [ "$doc_n_gen" -lt "$doc_n" ]; then
+      need=1
+      break
+    fi
+  done
+  echo "$need"
+}
 
 DOC_DATASET="${DATASET}${DOC_SUFFIX}"
 DOC_PREP_DIR="data/${DOC_DATASET}"
@@ -91,38 +139,52 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     PORT=8000
   fi
 
+  NEED_GEN=$(needs_generation "$MODEL_KEY")
+
   SERVER_PID=""
   cleanup() {
     if [ -n "$SERVER_PID" ]; then
       echo "Stopping server PID=$SERVER_PID"
-      pkill -TERM -P "$SERVER_PID" 2>/dev/null || true
+      kill -TERM -- "-$SERVER_PID" 2>/dev/null || true
       kill -TERM "$SERVER_PID" 2>/dev/null || true
       sleep 2
       if kill -0 "$SERVER_PID" 2>/dev/null; then
-        pkill -KILL -P "$SERVER_PID" 2>/dev/null || true
+        kill -KILL -- "-$SERVER_PID" 2>/dev/null || true
         kill -KILL "$SERVER_PID" 2>/dev/null || true
       fi
     fi
   }
 
-  if [ "$HOST" = "localhost" ] || [ "$HOST" = "127.0.0.1" ]; then
-    (./scripts/serve_vllm.sh "$MODEL_KEY" "$PORT") &
+  if [ "$NEED_GEN" = "1" ] && [ "$MANAGE_SERVER" = "1" ] && { [ "$HOST" = "localhost" ] || [ "$HOST" = "127.0.0.1" ]; }; then
+    if command -v setsid >/dev/null 2>&1; then
+      (setsid ./scripts/serve_vllm.sh "$MODEL_KEY" "$PORT") &
+    else
+      (./scripts/serve_vllm.sh "$MODEL_KEY" "$PORT") &
+    fi
     SERVER_PID=$!
     trap cleanup EXIT
     ./scripts/wait_server.sh "$API_BASE" 600
   else
-    echo "API_BASE is remote ($HOST); skipping local serve_vllm."
+    if [ "$NEED_GEN" = "0" ]; then
+      echo "Skipping local serve_vllm (no generation needed)."
+    else
+      echo "Skipping local serve_vllm (MANAGE_SERVER=$MANAGE_SERVER, host=$HOST)."
+    fi
   fi
 
-  # Sentence-level translation
-  for LP in "${LP_LIST[@]}"; do
-    ./scripts/generate.sh "$RUN_NAME" "$DATASET" "$LP" "$MODEL_KEY" "$API_BASE"
-  done
+  if [ "$NEED_GEN" = "1" ]; then
+    # Sentence-level translation
+    for LP in "${LP_LIST[@]}"; do
+      ./scripts/generate.sh "$RUN_NAME" "$DATASET" "$LP" "$MODEL_KEY" "$API_BASE"
+    done
 
-  # Doc-level translation
-  for LP in "${LP_LIST[@]}"; do
-    ./scripts/generate.sh "$RUN_NAME" "$DOC_DATASET" "$LP" "$MODEL_KEY" "$API_BASE"
-  done
+    # Doc-level translation
+    for LP in "${LP_LIST[@]}"; do
+      ./scripts/generate.sh "$RUN_NAME" "$DOC_DATASET" "$LP" "$MODEL_KEY" "$API_BASE"
+    done
+  else
+    echo "All generation outputs already exist for $MODEL_KEY; skipping generation."
+  fi
 
   # Derive doc-gen from sentence-gen + expand doc-gen to sentence
   for LP in "${LP_LIST[@]}"; do

@@ -32,17 +32,21 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
   echo "=== Serving model: $MODEL_KEY ==="
 
   # Start server in background
-  (./scripts/serve_vllm.sh "$MODEL_KEY" 8000) &
+  if command -v setsid >/dev/null 2>&1; then
+    (setsid ./scripts/serve_vllm.sh "$MODEL_KEY" 8000) &
+  else
+    (./scripts/serve_vllm.sh "$MODEL_KEY" 8000) &
+  fi
   SERVER_PID=$!
 
   # Ensure we stop server on exit
   cleanup() {
     echo "Stopping server PID=$SERVER_PID"
-    pkill -TERM -P "$SERVER_PID" 2>/dev/null || true
+    kill -TERM -- "-$SERVER_PID" 2>/dev/null || true
     kill -TERM "$SERVER_PID" 2>/dev/null || true
     sleep 2
     if kill -0 "$SERVER_PID" 2>/dev/null; then
-      pkill -KILL -P "$SERVER_PID" 2>/dev/null || true
+      kill -KILL -- "-$SERVER_PID" 2>/dev/null || true
       kill -KILL "$SERVER_PID" 2>/dev/null || true
     fi
   }
