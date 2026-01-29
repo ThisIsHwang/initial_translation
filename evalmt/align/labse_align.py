@@ -33,7 +33,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
+from torch import Tensor
+from transformers import AutoModel, AutoTokenizer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,6 +44,7 @@ LOGGER = logging.getLogger(__name__)
 @dataclass
 class AlignConfig:
     model_name: str = "sentence-transformers/LaBSE"
+    backend: Optional[str] = None  # "labse" | "e5"
     device: Optional[str] = None
     batch_size: int = 32
     seed: int = 42
@@ -59,6 +63,11 @@ class AlignConfig:
     # Confidence
     low_conf_threshold: float = 0.55
     worst_k: int = 3
+
+    # E5 settings
+    e5_query_prefix: str = "query: "
+    e5_passage_prefix: str = "passage: "
+    e5_max_length: int = 512
 
 
 def set_seed(seed: int) -> None:
@@ -149,20 +158,53 @@ def split_to_micro_chunks(
     return chunks
 
 
+def _average_pool(last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
+    last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+    return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
+
+
 def _encode_texts(
-    model: SentenceTransformer,
+    model: Any,
     texts: Iterable[str],
     *,
     batch_size: int,
     device: str,
+    tokenizer: Optional[Any] = None,
+    max_length: int = 512,
 ) -> np.ndarray:
-    vecs = model.encode(
-        list(texts),
-        batch_size=batch_size,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-        device=device,
-    )
+    if isinstance(model, SentenceTransformer):
+        vecs = model.encode(
+            list(texts),
+            batch_size=batch_size,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            device=device,
+        )
+        return vecs.astype(np.float32, copy=False)
+
+    if tokenizer is None:
+        raise ValueError("tokenizer is required for transformer backend")
+
+    all_vecs: List[np.ndarray] = []
+    texts_list = list(texts)
+    for i in range(0, len(texts_list), batch_size):
+        batch = texts_list[i : i + batch_size]
+        batch_dict = tokenizer(
+            batch,
+            max_length=max_length,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+        )
+        batch_dict = {k: v.to(device) for k, v in batch_dict.items()}
+        outputs = model(**batch_dict)
+        last_hidden = outputs.last_hidden_state
+        mask = batch_dict["attention_mask"]
+        pooled = _average_pool(last_hidden, mask)
+        pooled = F.normalize(pooled, p=2, dim=1)
+        all_vecs.append(pooled.detach().cpu().numpy())
+
+    vecs = np.concatenate(all_vecs, axis=0) if all_vecs else np.zeros((0, 1), dtype=np.float32)
     return vecs.astype(np.float32, copy=False)
 
 
@@ -189,7 +231,20 @@ def align_with_labse(
     if cfg.allow_n_to_1:
         LOGGER.warning("allow_n_to_1=True is not implemented; proceeding with 1–N only.")
 
-    model = SentenceTransformer(cfg.model_name, device=device)
+    backend = cfg.backend
+    if not backend:
+        if "intfloat/multilingual-e5" in cfg.model_name:
+            backend = "e5"
+        else:
+            backend = "labse"
+
+    tokenizer = None
+    if backend == "e5":
+        tokenizer = AutoTokenizer.from_pretrained(cfg.model_name)
+        model = AutoModel.from_pretrained(cfg.model_name).to(device)
+        model.eval()
+    else:
+        model = SentenceTransformer(cfg.model_name, device=device)
 
     hyp_chunks = split_to_micro_chunks(
         hyp_text,
@@ -209,7 +264,18 @@ def align_with_labse(
     if not src_sents:
         return [], {"mean": 0.0, "worst_k_mean": 0.0}
 
-    src_vecs = _encode_texts(model, src_sents, batch_size=cfg.batch_size, device=device)
+    if backend == "e5":
+        src_texts = [f"{cfg.e5_query_prefix}{s}" for s in src_sents]
+    else:
+        src_texts = src_sents
+    src_vecs = _encode_texts(
+        model,
+        src_texts,
+        batch_size=cfg.batch_size,
+        device=device,
+        tokenizer=tokenizer,
+        max_length=cfg.e5_max_length,
+    )
 
     aligned: List[Dict[str, Any]] = []
     j = 0
@@ -244,7 +310,18 @@ def align_with_labse(
                 break
             candidates.append(cur)
 
-        cand_vecs = _encode_texts(model, candidates, batch_size=cfg.batch_size, device=device)
+        if backend == "e5":
+            cand_texts = [f"{cfg.e5_passage_prefix}{c}" for c in candidates]
+        else:
+            cand_texts = candidates
+        cand_vecs = _encode_texts(
+            model,
+            cand_texts,
+            batch_size=cfg.batch_size,
+            device=device,
+            tokenizer=tokenizer,
+            max_length=cfg.e5_max_length,
+        )
 
         best_score = -math.inf
         best_k = j - 1
@@ -273,9 +350,20 @@ def align_with_labse(
         if i == len(src_sents) - 1 and cfg.attach_remaining_to_last and best_k < hyp_len - 1:
             hyp_piece = " ".join(hyp_chunks[j:])
             best_k = hyp_len - 1
+            if backend == "e5":
+                hyp_texts = [f"{cfg.e5_passage_prefix}{hyp_piece}"]
+            else:
+                hyp_texts = [hyp_piece]
             best_score = _cos_sim(
                 src_vecs[i],
-                _encode_texts(model, [hyp_piece], batch_size=cfg.batch_size, device=device)[0],
+                _encode_texts(
+                    model,
+                    hyp_texts,
+                    batch_size=cfg.batch_size,
+                    device=device,
+                    tokenizer=tokenizer,
+                    max_length=cfg.e5_max_length,
+                )[0],
             )
 
         low_conf = best_score < cfg.low_conf_threshold

@@ -30,6 +30,7 @@ DOC_MARKER_FIELDS="${DOC_MARKER_FIELDS:-source}"
 DOC_MARKER_REGEX="${DOC_MARKER_REGEX:-⟦\\d+⟧}"
 DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-rule}"
 DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
+DOC_ALIGN_MODEL="${DOC_ALIGN_MODEL:-}"
 
 if [ "$DOC_GEN_SEP" = "\\n" ]; then
   DOC_GEN_SEP=$'\n'
@@ -146,7 +147,8 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       --marker-regex "$DOC_MARKER_REGEX" \
       --add-doc-hyp \
       --align-mode "$DOC_ALIGN_MODE" \
-      $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" )
+      $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" ) \
+      $( [ -n "$DOC_ALIGN_MODEL" ] && echo "--align-model $DOC_ALIGN_MODEL" )
   done
 
   # Context scoring on sentence-level split outputs

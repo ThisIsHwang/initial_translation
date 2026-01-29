@@ -301,6 +301,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - 문단→문장 분절 정렬 모드:
   - `DOC_ALIGN_MODE=labse`로 LaBSE 기반 정렬 사용 (기본 `rule`)
   - `DOC_ALIGN_META=1`이면 `align_score`, `align_span`, `align_low_conf`를 출력에 포함
+  - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)
 - 스코어링 방식:
   - **s→s, d→s**: non‑context 메트릭으로 문장 단위 평가
   - **s→d, d→d**: context 메트릭으로 문장 단위 평가 (문서 점수는 문서 내 문장 점수 평균)
