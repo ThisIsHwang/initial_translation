@@ -119,6 +119,14 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     ./scripts/generate.sh "$RUN_NAME" "$DOC_DATASET" "$LP" "$MODEL_KEY" "$API_BASE"
   done
 
+  # Stop vLLM before alignment/splitting (avoid GPU contention)
+  cleanup
+  trap - EXIT || true
+
+  if [ "${CLEAN_GPU:-1}" = "1" ]; then
+    ./scripts/clean_gpu.sh
+  fi
+
   # Split doc translation back to sentences for scoring
   for LP in "${LP_LIST[@]}"; do
     DOC_GEN="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}.jsonl"
@@ -140,9 +148,6 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       --align-mode "$DOC_ALIGN_MODE" \
       $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" )
   done
-
-  cleanup
-  trap - EXIT || true
 
   # Context scoring on sentence-level split outputs
   for METRIC in "${METRIC_LIST[@]}"; do

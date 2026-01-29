@@ -202,6 +202,14 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     echo "All generation outputs already exist for $MODEL_KEY; skipping generation."
   fi
 
+  # Stop vLLM before alignment/splitting (avoid GPU contention)
+  cleanup
+  trap - EXIT || true
+
+  if [ "${CLEAN_GPU:-1}" = "1" ]; then
+    ./scripts/clean_gpu.sh
+  fi
+
   # Derive doc-gen from sentence-gen + expand doc-gen to sentence (doc->sent only)
   for LP in "${LP_LIST[@]}"; do
     SENT_GEN="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}.jsonl"
@@ -253,14 +261,6 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       fi
     fi
   done
-
-  # Stop vLLM before scoring (avoid GPU contention)
-  cleanup
-  trap - EXIT || true
-
-  if [ "${CLEAN_GPU:-1}" = "1" ]; then
-    ./scripts/clean_gpu.sh
-  fi
 
   # Scoring: 4 combos
   for LP in "${LP_LIST[@]}"; do

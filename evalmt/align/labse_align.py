@@ -70,13 +70,27 @@ def set_seed(seed: int) -> None:
 
 
 _PUNCT_SET = r"\.\?\!;:。！？؛۔॥؟።፧፨ฯ…"
-_PUNCT_REGEX = re.compile(rf"[\n{_PUNCT_SET}]+")
+_SPLIT_REGEX = re.compile(rf"([\\n{_PUNCT_SET}]+)")
 
 
 def _basic_split(text: str) -> List[str]:
     if not text:
         return []
-    parts = [p.strip() for p in _PUNCT_REGEX.split(text) if p.strip()]
+    parts: List[str] = []
+    buf = ""
+    for piece in _SPLIT_REGEX.split(text):
+        if not piece:
+            continue
+        if _SPLIT_REGEX.fullmatch(piece):
+            # attach delimiter to previous buffer
+            buf += piece
+            continue
+        if buf:
+            parts.append(buf.strip())
+            buf = ""
+        buf = piece
+    if buf.strip():
+        parts.append(buf.strip())
     return parts
 
 
