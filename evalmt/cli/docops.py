@@ -273,7 +273,29 @@ def cmd_expand(args: argparse.Namespace) -> None:
             )
             user = json.dumps({"src_sents": src_sents, "hyp_text": doc_hyp}, ensure_ascii=False)
 
-            async def _run() -> Dict[str, Any]:
+            schema = {
+                "type": "object",
+                "properties": {
+                    "aligned": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "src": {"type": "string"},
+                                "hyp": {"type": "string"},
+                            },
+                            "required": ["src", "hyp"],
+                        },
+                    }
+                },
+                "required": ["aligned"],
+            }
+
+            response_format = None
+            if args.align_response_format == "json_schema":
+                response_format = {"type": "json_schema", "json_schema": {"name": "alignment", "schema": schema}}
+
+            async def _run(fmt: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
                 return await chat_completion(
                     api_base=args.align_api_base,
                     model=args.align_model_name,
@@ -281,14 +303,27 @@ def cmd_expand(args: argparse.Namespace) -> None:
                     temperature=args.align_temperature,
                     top_p=1.0,
                     max_tokens=args.align_max_tokens,
+                    response_format=fmt,
                 )
 
-            resp = asyncio.run(_run())
+            try:
+                resp = asyncio.run(_run(response_format))
+            except Exception:
+                resp = asyncio.run(_run(None))
+
             text = extract_text(resp)
             try:
                 data = json.loads(text)
             except Exception as e:
-                raise ValueError(f"Failed to parse JSON from alignment model: {e}\n{text}") from e
+                if response_format:
+                    resp = asyncio.run(_run(None))
+                    text = extract_text(resp)
+                    try:
+                        data = json.loads(text)
+                    except Exception as e2:
+                        raise ValueError(f"Failed to parse JSON from alignment model: {e2}\n{text}") from e2
+                else:
+                    raise ValueError(f"Failed to parse JSON from alignment model: {e}\n{text}") from e
 
             items = data.get("aligned") if isinstance(data, dict) else data
             if not isinstance(items, list) or len(items) != len(src_sents):
@@ -433,6 +468,7 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--align-model-name", default=None)
     p_exp.add_argument("--align-temperature", type=float, default=0.0)
     p_exp.add_argument("--align-max-tokens", type=int, default=1024)
+    p_exp.add_argument("--align-response-format", choices=["none", "json_schema"], default="none")
 
     p_clean = sub.add_parser("clean")
     p_clean.add_argument("--input", required=True)

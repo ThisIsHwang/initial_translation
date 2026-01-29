@@ -53,6 +53,7 @@ async def chat_completion(
     top_p: float,
     max_tokens: int,
     stop: Optional[List[str]] = None,
+    response_format: Optional[Dict[str, Any]] = None,
     timeout_s: float = 120.0,
     max_retries: int = 3,
 ) -> Dict[str, Any]:
@@ -67,6 +68,8 @@ async def chat_completion(
     }
     if stop:
         payload["stop"] = stop
+    if response_format:
+        payload["response_format"] = response_format
 
     backoff = 1.5
     for attempt in range(max_retries + 1):
