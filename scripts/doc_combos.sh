@@ -22,7 +22,8 @@ DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-rule}"
 DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
 DOC_ALIGN_MODEL="${DOC_ALIGN_MODEL:-}"
 DOC_ALIGN_API_BASE="${DOC_ALIGN_API_BASE:-$API_BASE}"
-DOC_ALIGN_MODEL_NAME="${DOC_ALIGN_MODEL_NAME:-gpt_oss_120b}"
+DOC_ALIGN_MODEL_KEY="${DOC_ALIGN_MODEL_KEY:-gpt_oss_120b}"
+DOC_ALIGN_MODEL_NAME="${DOC_ALIGN_MODEL_NAME:-gpt-oss-120b}"
 MANAGE_ALIGN_SERVER="${MANAGE_ALIGN_SERVER:-0}"
 DOC_ALIGN_RESPONSE_FORMAT="${DOC_ALIGN_RESPONSE_FORMAT:-json_schema}"
 
@@ -224,10 +225,10 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       ALIGN_PORT=8001
     fi
     if [ "$ALIGN_HOST" = "localhost" ] || [ "$ALIGN_HOST" = "127.0.0.1" ]; then
-      if command -v setsid >/dev/null 2>&1; then
-        (setsid ./scripts/serve_vllm.sh "$DOC_ALIGN_MODEL_NAME" "$ALIGN_PORT") &
-      else
-        (./scripts/serve_vllm.sh "$DOC_ALIGN_MODEL_NAME" "$ALIGN_PORT") &
+    if command -v setsid >/dev/null 2>&1; then
+      (setsid ./scripts/serve_vllm.sh "$DOC_ALIGN_MODEL_KEY" "$ALIGN_PORT") &
+    else
+      (./scripts/serve_vllm.sh "$DOC_ALIGN_MODEL_KEY" "$ALIGN_PORT") &
       fi
       ALIGN_PID=$!
       ./scripts/wait_server.sh "$DOC_ALIGN_API_BASE" 600
