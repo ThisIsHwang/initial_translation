@@ -179,7 +179,9 @@ def _parse_fields(rows: List[Dict[str, Any]], fields_arg: Optional[str]) -> List
     if fields_arg:
         fields = [f.strip() for f in fields_arg.split(",") if f.strip()]
         return fields
-    fields = ["source", "reference"]
+    fields = ["source"]
+    if any("reference" in r for r in rows):
+        fields.append("reference")
     if any("hypothesis" in r for r in rows):
         fields.append("hypothesis")
     return fields
@@ -193,9 +195,14 @@ def cmd_to_doc(args: argparse.Namespace) -> None:
         raise ValueError(f"No rows in {in_path}")
 
     fields = _parse_fields(rows, args.fields)
+    # Drop fields that don't exist in any row (QE datasets may omit reference).
+    fields_present = []
     for f in fields:
-        if any(f not in r for r in rows):
-            raise KeyError(f"Missing '{f}' in some rows of {in_path}")
+        if any(f in r for r in rows):
+            fields_present.append(f)
+        else:
+            print(f"⚠️  Skipping missing field '{f}' in {in_path}")
+    fields = fields_present
 
     marker_fields = [x.strip() for x in (args.marker_fields or "").split(",") if x.strip()]
 
