@@ -21,6 +21,8 @@ DOC_MARKER_KEEP_RAW="${DOC_MARKER_KEEP_RAW:-1}"
 DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-rule}"
 DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
 DOC_ALIGN_MODEL="${DOC_ALIGN_MODEL:-}"
+DOC_ALIGN_API_BASE="${DOC_ALIGN_API_BASE:-$API_BASE}"
+DOC_ALIGN_MODEL_NAME="${DOC_ALIGN_MODEL_NAME:-}"
 
 # Allow common literal escape
 if [ "$DOC_GEN_SEP" = "\\n" ]; then
@@ -244,7 +246,9 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       --add-doc-hyp \
       --align-mode "$DOC_ALIGN_MODE" \
       $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" ) \
-      $( [ -n "$DOC_ALIGN_MODEL" ] && echo "--align-model $DOC_ALIGN_MODEL" )
+      $( [ -n "$DOC_ALIGN_MODEL" ] && echo "--align-model $DOC_ALIGN_MODEL" ) \
+      $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-api-base $DOC_ALIGN_API_BASE" ) \
+      $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-model-name ${DOC_ALIGN_MODEL_NAME:-$MODEL_KEY}" )
 
     if [ "$DOC_MARKER_ENABLE" = "1" ]; then
       if [ -f "$DOC_GEN" ]; then

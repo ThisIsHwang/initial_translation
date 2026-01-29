@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import json
 import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..utils.jsonl import iter_jsonl, write_jsonl
 from ..align.labse_align import AlignConfig, align_with_labse
+from ..generation.vllm_openai import chat_completion, extract_text
 
 
 def _normalize_text(value: Any) -> str:
@@ -253,7 +256,50 @@ def cmd_expand(args: argparse.Namespace) -> None:
             doc_row = doc_rows[doc_idx] if doc_idx < len(doc_rows) else {}
 
         doc_hyp = _normalize_text(doc_row.get(args.hyp_field))
-        if args.align_mode == "labse":
+        if args.align_mode == "gpt":
+            if not args.align_api_base or not args.align_model_name:
+                raise ValueError("align_mode=gpt requires --align-api-base and --align-model-name")
+
+            src_sents = [base_rows[i].get("source", "") for i in idxs]
+
+            system = (
+                "You are a sentence alignment engine. "
+                "Return JSON only, with schema: {\"aligned\":[{\"src\":...,\"hyp\":...}]} . "
+                "Given src_sents (N items) and hyp_text, split hyp_text into N chunks in order. "
+                "Each output item must have keys: src, hyp. "
+                "Do NOT change src text. "
+                "Keep monotonic order. "
+                "If you cannot find content, use empty string for hyp."
+            )
+            user = json.dumps({"src_sents": src_sents, "hyp_text": doc_hyp}, ensure_ascii=False)
+
+            async def _run() -> Dict[str, Any]:
+                return await chat_completion(
+                    api_base=args.align_api_base,
+                    model=args.align_model_name,
+                    messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    temperature=args.align_temperature,
+                    top_p=1.0,
+                    max_tokens=args.align_max_tokens,
+                )
+
+            resp = asyncio.run(_run())
+            text = extract_text(resp)
+            try:
+                data = json.loads(text)
+            except Exception as e:
+                raise ValueError(f"Failed to parse JSON from alignment model: {e}\n{text}") from e
+
+            items = data.get("aligned") if isinstance(data, dict) else data
+            if not isinstance(items, list) or len(items) != len(src_sents):
+                raise ValueError("Alignment output size mismatch")
+
+            for i, idx in enumerate(idxs):
+                row = items[i] if isinstance(items[i], dict) else {}
+                sent_hyps[idx] = (row.get("hyp") if row else "") or ""
+                doc_split_status[idx] = "gpt"
+                doc_hyps[idx] = doc_hyp
+        elif args.align_mode == "labse":
             src_sents = [base_rows[i].get("source", "") for i in idxs]
             attach_remaining = bool(args.align_attach_remaining_to_last)
             if args.align_no_attach_remaining:
@@ -368,7 +414,7 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--regex", default=None)
     p_exp.add_argument("--marker-regex", default=None)
     p_exp.add_argument("--add-doc-hyp", action="store_true")
-    p_exp.add_argument("--align-mode", choices=["rule", "labse"], default="rule")
+    p_exp.add_argument("--align-mode", choices=["rule", "labse", "gpt"], default="rule")
     p_exp.add_argument("--align-meta", action="store_true")
     p_exp.add_argument("--align-model", default="sentence-transformers/LaBSE")
     p_exp.add_argument("--align-device", default=None)
@@ -383,6 +429,10 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--align-no-attach-remaining", action="store_true")
     p_exp.add_argument("--align-allow-n-to-1", action="store_true")
     p_exp.add_argument("--align-low-conf-threshold", type=float, default=0.55)
+    p_exp.add_argument("--align-api-base", default=None)
+    p_exp.add_argument("--align-model-name", default=None)
+    p_exp.add_argument("--align-temperature", type=float, default=0.0)
+    p_exp.add_argument("--align-max-tokens", type=int, default=1024)
 
     p_clean = sub.add_parser("clean")
     p_clean.add_argument("--input", required=True)
