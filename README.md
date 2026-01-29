@@ -303,6 +303,8 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - `DOC_ALIGN_META=1`이면 `align_score`, `align_span`, `align_low_conf`를 출력에 포함
   - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)
   - `DOC_ALIGN_MODE=gpt`로 LLM 정렬 사용 (필요: `DOC_ALIGN_API_BASE`, `DOC_ALIGN_MODEL_NAME`)
+  - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt_oss_120b`이며, 번역 모델과 무관하게 고정 가능
+  - `MANAGE_ALIGN_SERVER=1`이면 정렬용 vLLM 서버를 별도로 자동 실행/종료합니다.
 - 스코어링 방식:
   - **s→s, d→s**: non‑context 메트릭으로 문장 단위 평가
   - **s→d, d→d**: context 메트릭으로 문장 단위 평가 (문서 점수는 문서 내 문장 점수 평균)

@@ -22,7 +22,8 @@ DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-rule}"
 DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
 DOC_ALIGN_MODEL="${DOC_ALIGN_MODEL:-}"
 DOC_ALIGN_API_BASE="${DOC_ALIGN_API_BASE:-$API_BASE}"
-DOC_ALIGN_MODEL_NAME="${DOC_ALIGN_MODEL_NAME:-}"
+DOC_ALIGN_MODEL_NAME="${DOC_ALIGN_MODEL_NAME:-gpt_oss_120b}"
+MANAGE_ALIGN_SERVER="${MANAGE_ALIGN_SERVER:-0}"
 
 # Allow common literal escape
 if [ "$DOC_GEN_SEP" = "\\n" ]; then
@@ -213,6 +214,25 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
     ./scripts/clean_gpu.sh
   fi
 
+  # Optional: start a dedicated GPT alignment server (default model: gpt_oss_120b)
+  ALIGN_PID=""
+  if [ "$DOC_ALIGN_MODE" = "gpt" ] && [ "$MANAGE_ALIGN_SERVER" = "1" ]; then
+    ALIGN_HOST=$(echo "$DOC_ALIGN_API_BASE" | sed -E 's#^https?://([^/:]+).*#\\1#')
+    ALIGN_PORT=$(echo "$DOC_ALIGN_API_BASE" | sed -E 's#^https?://[^:/]+:([0-9]+).*#\\1#')
+    if [ -z "$ALIGN_PORT" ] || [ "$ALIGN_PORT" = "$DOC_ALIGN_API_BASE" ]; then
+      ALIGN_PORT=8001
+    fi
+    if [ "$ALIGN_HOST" = "localhost" ] || [ "$ALIGN_HOST" = "127.0.0.1" ]; then
+      if command -v setsid >/dev/null 2>&1; then
+        (setsid ./scripts/serve_vllm.sh "$DOC_ALIGN_MODEL_NAME" "$ALIGN_PORT") &
+      else
+        (./scripts/serve_vllm.sh "$DOC_ALIGN_MODEL_NAME" "$ALIGN_PORT") &
+      fi
+      ALIGN_PID=$!
+      ./scripts/wait_server.sh "$DOC_ALIGN_API_BASE" 600
+    fi
+  fi
+
   # Derive doc-gen from sentence-gen + expand doc-gen to sentence (doc->sent only)
   for LP in "${LP_LIST[@]}"; do
     SENT_GEN="outputs/${RUN_NAME}/gen/${DATASET}/${LP}/${MODEL_KEY}.jsonl"
@@ -248,7 +268,7 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" ) \
       $( [ -n "$DOC_ALIGN_MODEL" ] && echo "--align-model $DOC_ALIGN_MODEL" ) \
       $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-api-base $DOC_ALIGN_API_BASE" ) \
-      $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-model-name ${DOC_ALIGN_MODEL_NAME:-$MODEL_KEY}" )
+      $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-model-name $DOC_ALIGN_MODEL_NAME" )
 
     if [ "$DOC_MARKER_ENABLE" = "1" ]; then
       if [ -f "$DOC_GEN" ]; then
@@ -293,6 +313,16 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       ./scripts/score.sh "$RUN_NAME" "$METRIC" "$DOC_DATASET" "$LP" "$MODEL_KEY"
     done
   done
+
+  if [ -n "$ALIGN_PID" ]; then
+    kill -TERM -- "-$ALIGN_PID" 2>/dev/null || true
+    kill -TERM "$ALIGN_PID" 2>/dev/null || true
+    sleep 2
+    if kill -0 "$ALIGN_PID" 2>/dev/null; then
+      kill -KILL -- "-$ALIGN_PID" 2>/dev/null || true
+      kill -KILL "$ALIGN_PID" 2>/dev/null || true
+    fi
+  fi
 done
 
 ./scripts/aggregate.sh "$RUN_NAME"
