@@ -303,7 +303,8 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - `DOC_ALIGN_META=1`이면 `align_score`, `align_span`, `align_low_conf`를 출력에 포함
   - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)
   - `DOC_ALIGN_MODE=gpt`로 LLM 정렬 사용 (필요: `DOC_ALIGN_API_BASE`, `DOC_ALIGN_MODEL_NAME`)
-  - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt_oss_120b`이며, 번역 모델과 무관하게 고정 가능
+  - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt-oss-120b`이며, 번역 모델과 무관하게 고정 가능
+  - `DOC_ALIGN_MODEL_KEY`는 정렬 서버를 띄울 때 사용하는 **config 키**입니다. (예: `gpt_oss_120b`)
   - `MANAGE_ALIGN_SERVER=1`이면 정렬용 vLLM 서버를 별도로 자동 실행/종료합니다.
   - `DOC_ALIGN_RESPONSE_FORMAT=json_schema`로 구조화 출력 요청 (미지원 시 자동 폴백)
 - 스코어링 방식:
@@ -329,6 +330,34 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 
 `run_all.sh`는 모델별로 **생성 후 vLLM 종료 → 점수화** 순서로 동작합니다.
 
+### 8.6 파이프라인 분리 실행 (generate / align / score)
+
+```bash
+# 생성
+MANAGE_SERVER=1 \
+bash scripts/pipeline_generate.sh run1 wmt24pp all all http://localhost:8000/v1
+
+# 정렬 (doc → sent)
+DOC_ALIGN_MODE=gpt MANAGE_ALIGN_SERVER=1 \
+DOC_ALIGN_MODEL_KEY=gpt_oss_120b DOC_ALIGN_MODEL_NAME=gpt-oss-120b \
+DOC_ALIGN_API_BASE=http://localhost:8001/v1 \
+bash scripts/pipeline_align.sh run1 wmt24pp all all
+
+# 평가
+bash scripts/pipeline_score.sh run1 wmt24pp all all all
+```
+
+### 8.7 UV 환경 분리 실행
+
+- vLLM 서빙: `UV_PROJECT_SERVE=/path/to/uv`
+- 생성: `UV_PROJECT_GEN=/path/to/uv`
+- 정렬(docops): `UV_PROJECT_ALIGN=/path/to/uv` 또는 `UV_PROJECT_DOCOPS=/path/to/uv`
+- 평가: `UV_PROJECT_SCORE=/path/to/uv`
+- **메트릭별** uv:  
+  `METRIC_UV_PROJECTS="metricx24_qe=/pathA,xcomet_xxl_qe=/pathB,cometkiwi_wmt23_xxl_qe=/pathC"`
+
+각 단계 스크립트는 종료 시 vLLM을 자동 종료하며, 모델 변경 시에도 기존 서버를 먼저 종료합니다.
+
 ---
 
 ## 9. 스크립트/CLI 요약
@@ -346,9 +375,15 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 - `scripts/score.sh`: 메트릭 점수화
 - `scripts/aggregate.sh`: 요약 CSV 생성
 - `scripts/run_all.sh`: 전체 파이프라인 실행
+- `scripts/pipeline_generate.sh`: 생성 전용 파이프라인
+- `scripts/pipeline_align.sh`: 얼라인(문서→문장) 전용 파이프라인
+- `scripts/pipeline_score.sh`: 평가 전용 파이프라인
+- `scripts/pipeline_all.sh`: generate → align → score 통합 실행
 - `scripts/doc_combos.sh`: 문장/문단 4조합 평가
 - `scripts/clean_gpu.sh`: 스코어링 전 GPU 점유 프로세스 종료 (옵션)
 - `scripts/run_reference50_doc_ctx.sh`: reference50 문단 번역 → 문장 분절 → context 스코어링
+- `scripts/stop_vllm.sh`: vLLM 서버 종료 헬퍼
+- `scripts/run_wmt24pp_all.sh`: wmt24pp 전체 자동 실행 (요청 모델/메트릭 세트)
 
 ### CLI 엔트리포인트
 

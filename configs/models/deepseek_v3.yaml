@@ -1,0 +1,27 @@
+hf_model_id: deepseek-ai/DeepSeek-V3
+served_model_name: deepseek-v3
+
+vllm:
+  port: 8000
+  host: 0.0.0.0
+  dtype: auto
+  # Large models typically require multi-GPU tensor parallelism.
+  tensor_parallel_size: 8
+  gpu_memory_utilization: 0.90
+  max_model_len: 4096
+  trust_remote_code: true
+  extra_args: []
+
+prompt:
+  system: |
+    You are a professional translator.
+    Translate from English to {target_language} ({target_region}).
+    Output ONLY the translated text. No explanations.
+  user: |
+    {source}
+
+generation_defaults:
+  temperature: 0.0
+  top_p: 1.0
+  max_tokens: 256
+  stop: []
