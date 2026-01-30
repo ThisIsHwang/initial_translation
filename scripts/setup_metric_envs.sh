@@ -19,7 +19,7 @@ METRICX_PYTHON="${METRICX_PYTHON:-3.11}"
 # Optional extra pins (comma-separated)
 COMET_EXTRA_DEPS="${COMET_EXTRA_DEPS:-}"
 # MetricX env pins (override with METRICX_EXTRA_DEPS if needed)
-METRICX_EXTRA_DEPS="${METRICX_EXTRA_DEPS:-transformers[torch]==4.30.2,tokenizers==0.13.3,sentencepiece==0.1.99,numpy==1.26.4,datasets==2.21.0,accelerate==1.12.0,pyarrow==15.0.2}"
+METRICX_EXTRA_DEPS="${METRICX_EXTRA_DEPS:-transformers[torch]==4.30.2,tokenizers==0.13.3,sentencepiece==0.1.99,protobuf==3.20.3,numpy==1.26.4,datasets==2.21.0,accelerate==1.12.0,pyarrow==15.0.2}"
 BLEU_EXTRA_DEPS="${BLEU_EXTRA_DEPS:-}"
 
 write_project() {
