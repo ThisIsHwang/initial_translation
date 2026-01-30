@@ -18,16 +18,6 @@ dependencies = [
   "numpy>=1.26.0",
   "httpx>=0.27.0",
   "huggingface_hub>=0.24.0",
-
-  # Metrics
-  "unbabel-comet>=2.2.0",
-  "sacrebleu>=2.4.0",
-  "sentence-transformers>=2.6.0",
-
-  # Transformer stack (MetricX / general tokenization)
-  "torch>=2.2.0",
-  "transformers>=4.41.0",
-  "sentencepiece>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +25,27 @@ dependencies = [
 # (CUDA/ROCm, and gpt-oss requires a special vLLM build). Install via scripts.
 serve = [
   # "vllm"
+]
+
+comet = [
+  "unbabel-comet>=2.2.0",
+]
+
+bleu = [
+  "sacrebleu>=2.4.0",
+]
+
+metricx = [
+  "torch>=2.2.0",
+  "transformers>=4.41.0",
+  "sentencepiece>=0.2.0",
+]
+
+align = [
+  "sentence-transformers>=2.6.0",
+  "torch>=2.2.0",
+  "transformers>=4.41.0",
+  "sentencepiece>=0.2.0",
 ]
 
 dev = [

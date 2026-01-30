@@ -47,6 +47,19 @@ WMT24++ 데이터셋을 준비하고, vLLM(OpenAI 호환 API)로 번역을 생�
 uv sync
 ```
 
+옵션 A) **단일 환경에 전부 설치** (간단/테스트용)
+
+```bash
+uv sync --extra comet --extra metricx --extra bleu --extra align
+```
+
+옵션 B) **메트릭별 환경 분리** (권장, 충돌 방지)
+
+```bash
+# comet / metricx / bleu 전용 uv 환경 자동 구성
+bash scripts/setup_metric_envs.sh
+```
+
 선택: 개발 도구 포함
 
 ```bash
@@ -300,6 +313,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - 관련 옵션: `DOC_MARKER_TEMPLATE`, `DOC_MARKER_JOIN`, `DOC_MARKER_FIELDS`, `DOC_MARKER_REGEX`, `DOC_MARKER_KEEP_RAW`
 - 문단→문장 분절 정렬 모드:
   - `DOC_ALIGN_MODE=labse`로 LaBSE 기반 정렬 사용 (기본 `rule`)
+    - 필요 의존성: `evalmt[align]` (또는 별도 align env)
   - `DOC_ALIGN_META=1`이면 `align_score`, `align_span`, `align_low_conf`를 출력에 포함
   - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)
   - `DOC_ALIGN_MODE=gpt`로 LLM 정렬 사용 (필요: `DOC_ALIGN_API_BASE`, `DOC_ALIGN_MODEL_NAME`)
@@ -369,8 +383,34 @@ bash scripts/pipeline_score.sh run1 wmt24pp all all all
 - 생성: `UV_PROJECT_GEN=/path/to/uv`
 - 정렬(docops): `UV_PROJECT_ALIGN=/path/to/uv` 또는 `UV_PROJECT_DOCOPS=/path/to/uv`
 - 평가: `UV_PROJECT_SCORE=/path/to/uv`
-- **메트릭별** uv:  
+- **메트릭별** uv (정밀 매핑):  
   `METRIC_UV_PROJECTS="metricx24_qe=/pathA,xcomet_xxl_qe=/pathB,cometkiwi_wmt23_xxl_qe=/pathC"`
+- **메트릭 패밀리별** uv (간편 분리):  
+  `METRIC_UV_PROJECT_METRICX=/path_metricx`  
+  `METRIC_UV_PROJECT_COMET=/path_comet`  
+  `METRIC_UV_PROJECT_BLEU=/path_bleu`
+- **강제 분리 모드**:  
+  `METRIC_UV_PROJECTS_REQUIRED=1`이면 메트릭별 UV 프로젝트가 없을 때 **에러**로 중단합니다.
+
+#### 8.8.1 메트릭 전용 환경 자동 세팅
+
+```bash
+# comet / metricx / bleu 전용 env 자동 생성
+bash scripts/setup_metric_envs.sh
+```
+
+자동 생성되는 파일:
+- `.uv/comet`, `.uv/metricx`, `.uv/bleu` (각각 전용 uv 프로젝트)
+- `.uv/metric_envs.env` (자동 소스용 환경 변수)
+
+파이프라인/스코어 스크립트는 기본적으로 `.uv/metric_envs.env`를 **자동 로드**합니다.  
+직접 쓸 경우:
+
+```bash
+source .uv/metric_envs.env
+```
+
+이 구성은 **metricx와 comet을 완전히 분리된 환경**으로 실행합니다.
 
 각 단계 스크립트는 종료 시 vLLM을 자동 종료하며, **모델 변경 시에도 기존 서버를 먼저 종료**합니다.
 
@@ -408,6 +448,7 @@ bash scripts/run_wmt24pp_all.sh run1 all http://localhost:8000/v1
 - `scripts/run_reference50_doc_ctx.sh`: reference50 문단 번역 → 문장 분절 → context 스코어링
 - `scripts/stop_vllm.sh`: vLLM 서버 종료 헬퍼
 - `scripts/run_wmt24pp_all.sh`: wmt24pp 전체 자동 실행 (요청 모델/메트릭 세트)
+- `scripts/setup_metric_envs.sh`: 메트릭별 uv 환경 자동 생성
 
 ### CLI 엔트리포인트
 

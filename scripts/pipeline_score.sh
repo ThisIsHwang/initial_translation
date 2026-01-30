@@ -12,6 +12,12 @@ MODELS="${4:-all}"
 METRICS="${5:-all}"
 
 DOC_SUFFIX="${DOC_SUFFIX:-_doc}"
+METRIC_ENV_FILE="${METRIC_ENV_FILE:-.uv/metric_envs.env}"
+
+if [ -f "$METRIC_ENV_FILE" ]; then
+  # shellcheck source=/dev/null
+  source "$METRIC_ENV_FILE"
+fi
 
 mapfile -t DATASET_LIST < <(pipeline_list_datasets "$DATASETS")
 [ "${#DATASET_LIST[@]}" -gt 0 ] || pipeline_die "No datasets found."

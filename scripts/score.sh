@@ -13,7 +13,18 @@ MODEL_KEY="${5:?MODEL_KEY required}"
 #   SCORE_GPU_LIST=7 ./scripts/score.sh ...
 SCORE_GPU_LIST="${SCORE_GPU_LIST:-}"
 UV_PROJECT_SCORE="${UV_PROJECT_SCORE:-${UV_PROJECT:-}}"
+METRIC_ENV_FILE="${METRIC_ENV_FILE:-.uv/metric_envs.env}"
+
+if [ -f "$METRIC_ENV_FILE" ]; then
+  # shellcheck source=/dev/null
+  source "$METRIC_ENV_FILE"
+fi
+
 METRIC_UV_PROJECTS="${METRIC_UV_PROJECTS:-}"
+METRIC_UV_PROJECTS_REQUIRED="${METRIC_UV_PROJECTS_REQUIRED:-0}"
+METRIC_UV_PROJECT_COMET="${METRIC_UV_PROJECT_COMET:-}"
+METRIC_UV_PROJECT_METRICX="${METRIC_UV_PROJECT_METRICX:-}"
+METRIC_UV_PROJECT_BLEU="${METRIC_UV_PROJECT_BLEU:-}"
 
 metric_project() {
   local metric="$1"
@@ -30,12 +41,34 @@ metric_project() {
     done
   fi
   if [ -z "$project" ]; then
+    case "$metric" in
+      metricx* )
+        project="$METRIC_UV_PROJECT_METRICX"
+        ;;
+      *comet*|xcomet*|cometkiwi* )
+        project="$METRIC_UV_PROJECT_COMET"
+        ;;
+      bleu )
+        project="$METRIC_UV_PROJECT_BLEU"
+        ;;
+    esac
+  fi
+  if [ -z "$project" ]; then
+    if [ "$METRIC_UV_PROJECTS_REQUIRED" = "1" ]; then
+      echo "__MISSING__"
+      return
+    fi
     project="$UV_PROJECT_SCORE"
   fi
   echo "$project"
 }
 
 PROJECT=$(metric_project "$METRIC_KEY")
+if [ "$PROJECT" = "__MISSING__" ]; then
+  echo "ERROR: No UV project configured for metric '$METRIC_KEY'." >&2
+  echo "Set METRIC_UV_PROJECTS or METRIC_UV_PROJECT_COMET/METRIC_UV_PROJECT_METRICX/METRIC_UV_PROJECT_BLEU." >&2
+  exit 1
+fi
 UV_ARGS=()
 if [ -n "$PROJECT" ]; then
   UV_ARGS=(--project "$PROJECT")
