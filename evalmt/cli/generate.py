@@ -156,8 +156,8 @@ async def main_async() -> None:
                 if lang_code_map:
                     row_src = apply_lang_code_map(row_src, lang_code_map)
                     row_tgt = apply_lang_code_map(row_tgt, lang_code_map)
-                tagged = f\"<<<source>>>{row_src}<<<target>>>{row_tgt}<<<text>>>{r['source']}\"
-                messages = [{\"role\": \"user\", \"content\": tagged}]
+                tagged = f"<<<source>>>{row_src}<<<target>>>{row_tgt}<<<text>>>{r['source']}"
+                messages = [{"role": "user", "content": tagged}]
             else:
                 system, user = _format_prompt(
                     fmt,
