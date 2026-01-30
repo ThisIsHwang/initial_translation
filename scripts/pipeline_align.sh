@@ -13,12 +13,6 @@ MODELS="${4:-all}"
 DOC_SUFFIX="${DOC_SUFFIX:-_doc}"
 DOC_GEN_SEP="${DOC_GEN_SEP:-$'\n'}"
 DOC_SPLIT_SEP="${DOC_SPLIT_SEP:-$DOC_GEN_SEP}"
-DOC_MARKER_ENABLE="${DOC_MARKER_ENABLE:-1}"
-DOC_MARKER_TEMPLATE="${DOC_MARKER_TEMPLATE:-⟦{i}⟧}"
-DOC_MARKER_JOIN="${DOC_MARKER_JOIN:- }"
-DOC_MARKER_FIELDS="${DOC_MARKER_FIELDS:-source}"
-DOC_MARKER_REGEX="${DOC_MARKER_REGEX:-⟦\\d+⟧}"
-DOC_MARKER_KEEP_RAW="${DOC_MARKER_KEEP_RAW:-1}"
 
 DOC_ALIGN_MODE="${DOC_ALIGN_MODE:-gpt}"
 DOC_ALIGN_META="${DOC_ALIGN_META:-0}"
@@ -80,7 +74,6 @@ for dataset in "${DATASET_LIST[@]}"; do
     for LP in "${LP_LIST[@]}"; do
       SENT_GEN="outputs/${RUN_NAME}/gen/${dataset}/${LP}/${MODEL_KEY}.jsonl"
       DOC_GEN="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}.jsonl"
-      DOC_GEN_RAW="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}__raw.jsonl"
       DOC_FROM_SENT="outputs/${RUN_NAME}/gen/${DOC_DATASET}/${LP}/${MODEL_KEY}__from_sent.jsonl"
       SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${dataset}/${LP}/${MODEL_KEY}__from_doc.jsonl"
 
@@ -100,21 +93,13 @@ for dataset in "${DATASET_LIST[@]}"; do
       fi
 
       DOC_FOR_EXP="$DOC_GEN"
-      if [ "$DOC_MARKER_ENABLE" = "1" ] && [ -f "$DOC_GEN_RAW" ]; then
-        DOC_FOR_EXP="$DOC_GEN_RAW"
-      fi
       SPLITTER="auto"
-      if [ "$DOC_MARKER_ENABLE" = "1" ]; then
-        SPLITTER="marker"
-      fi
-
       pipeline_docops expand \
         --base "${BASE_DIR}/${LP}.jsonl" \
         --doc "$DOC_FOR_EXP" \
         --output "$SENT_FROM_DOC" \
         --sep "$DOC_SPLIT_SEP" \
         --splitter "$SPLITTER" \
-        --marker-regex "$DOC_MARKER_REGEX" \
         --add-doc-hyp \
         --align-mode "$DOC_ALIGN_MODE" \
         $( [ "$DOC_ALIGN_META" = "1" ] && echo "--align-meta" ) \
@@ -123,21 +108,6 @@ for dataset in "${DATASET_LIST[@]}"; do
         $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-model-name $DOC_ALIGN_MODEL_NAME" ) \
         $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-max-tokens $DOC_ALIGN_MAX_TOKENS" ) \
         $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-response-format $DOC_ALIGN_RESPONSE_FORMAT" )
-
-      if [ "$DOC_MARKER_ENABLE" = "1" ]; then
-        if [ "$DOC_MARKER_KEEP_RAW" = "1" ] && [ ! -f "$DOC_GEN_RAW" ]; then
-          mv "$DOC_GEN" "$DOC_GEN_RAW"
-        fi
-        RAW_IN="$DOC_GEN"
-        if [ -f "$DOC_GEN_RAW" ]; then
-          RAW_IN="$DOC_GEN_RAW"
-        fi
-        pipeline_docops clean \
-          --input "$RAW_IN" \
-          --output "$DOC_GEN" \
-          --marker-regex "$DOC_MARKER_REGEX" \
-          --fields "source,reference,hypothesis"
-      fi
     done
   done
 done

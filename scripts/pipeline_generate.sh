@@ -17,10 +17,6 @@ FORCE_DOC_PREP="${FORCE_DOC_PREP:-0}"
 
 DOC_SUFFIX="${DOC_SUFFIX:-_doc}"
 DOC_GEN_SEP="${DOC_GEN_SEP:-$'\n'}"
-DOC_MARKER_ENABLE="${DOC_MARKER_ENABLE:-1}"
-DOC_MARKER_TEMPLATE="${DOC_MARKER_TEMPLATE:-⟦{i}⟧}"
-DOC_MARKER_JOIN="${DOC_MARKER_JOIN:- }"
-DOC_MARKER_FIELDS="${DOC_MARKER_FIELDS:-source}"
 
 DOC_GEN_SEP="$(pipeline_normalize_sep "$DOC_GEN_SEP")"
 
@@ -101,22 +97,11 @@ EOF
     fi
     DOC_PATH="${DOC_PREP_DIR}/${lp}.jsonl"
     if [ "$FORCE_DOC_PREP" = "1" ] || [ ! -f "$DOC_PATH" ]; then
-      if [ "$DOC_MARKER_ENABLE" = "1" ]; then
-        pipeline_docops to-doc \
-          --input "$BASE_PATH" \
-          --output "$DOC_PATH" \
-          --sep "$DOC_GEN_SEP" \
-          --fields "source,reference" \
-          --marker-template "$DOC_MARKER_TEMPLATE" \
-          --marker-join "$DOC_MARKER_JOIN" \
-          --marker-fields "$DOC_MARKER_FIELDS"
-      else
-        pipeline_docops to-doc \
-          --input "$BASE_PATH" \
-          --output "$DOC_PATH" \
-          --sep "$DOC_GEN_SEP" \
-          --fields "source,reference"
-      fi
+      pipeline_docops to-doc \
+        --input "$BASE_PATH" \
+        --output "$DOC_PATH" \
+        --sep "$DOC_GEN_SEP" \
+        --fields "source,reference"
     fi
   done
 done
