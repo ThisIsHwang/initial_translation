@@ -4,7 +4,7 @@ set -euo pipefail
 RUN_NAME="${1:?RUN_NAME required (ex: run1)}"
 DATASET="${2:?DATASET required (ex: wmt24pp)}"
 LP="${3:?LP required (ex: en-ko_KR)}"
-MODEL_KEY="${4:?MODEL_KEY required (ex: gpt_oss_120b)}"
+MODEL_KEY="${4:?MODEL_KEY required (ex: gemma3_27b_it)}"
 API_BASE="${5:-http://localhost:8000/v1}"
 
 # You can override concurrency like:

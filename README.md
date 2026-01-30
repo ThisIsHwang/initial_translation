@@ -87,18 +87,18 @@ uv sync --extra dev
 ### 5) vLLM 서버 실행 + 번역 생성
 
 ```bash
-./scripts/serve_vllm.sh gpt_oss_120b 8000
+./scripts/serve_vllm.sh gemma3_27b_it 8000
 ./scripts/wait_server.sh http://localhost:8000/v1
-./scripts/generate.sh run1 wmt24pp en-ko_KR gpt_oss_120b http://localhost:8000/v1
+./scripts/generate.sh run1 wmt24pp en-ko_KR gemma3_27b_it http://localhost:8000/v1
 ```
 
 ### 6) 점수화 + 집계
 
 ```bash
-./scripts/score.sh run1 xcomet_mqm    wmt24pp en-ko_KR gpt_oss_120b
-./scripts/score.sh run1 xcomet_qe     wmt24pp en-ko_KR gpt_oss_120b
-./scripts/score.sh run1 metricx24_ref wmt24pp en-ko_KR gpt_oss_120b
-./scripts/score.sh run1 metricx24_qe  wmt24pp en-ko_KR gpt_oss_120b
+./scripts/score.sh run1 xcomet_mqm    wmt24pp en-ko_KR gemma3_27b_it
+./scripts/score.sh run1 xcomet_qe     wmt24pp en-ko_KR gemma3_27b_it
+./scripts/score.sh run1 metricx24_ref wmt24pp en-ko_KR gemma3_27b_it
+./scripts/score.sh run1 metricx24_qe  wmt24pp en-ko_KR gemma3_27b_it
 ./scripts/aggregate.sh run1
 ```
 
@@ -134,7 +134,7 @@ uv sync --extra dev
 생성 결과:
 
 ```json
-{"id":"en-ko_KR:123","lp":"en-ko_KR","source":"...","reference":"...","hypothesis":"...","model":"gpt_oss_120b","served_model":"gpt-oss-120b","gen_params":{"temperature":0.0,"top_p":1.0,"max_tokens":256,"stop":[]}}
+{"id":"en-ko_KR:123","lp":"en-ko_KR","source":"...","reference":"...","hypothesis":"...","model":"gemma3_27b_it","served_model":"gemma-3-27b-it","gen_params":{"temperature":0.0,"top_p":1.0,"max_tokens":256,"stop":[]}}
 ```
 
 메트릭 결과:
@@ -204,6 +204,23 @@ uv pip install vllm
 
 `gpt-oss`는 전용 빌드가 필요할 수 있으니 실패 시 모델 카드/환경에 맞게 조정하세요.
 
+### 5.3 vLLM 전용 환경 자동 세팅
+
+```bash
+# vLLM 전용 uv 환경 생성 + 설치
+bash scripts/setup_vllm_env.sh
+```
+
+자동 생성되는 파일:
+- `.uv/vllm` (vLLM 전용 uv 프로젝트)
+- `.uv/vllm_env.env` (자동 소스용 환경 변수)
+
+서빙 시 자동 로드됩니다:
+
+```bash
+./scripts/serve_vllm.sh gemma3_27b_it 8000
+```
+
 ---
 
 ## 6. MetricX 설치
@@ -239,13 +256,13 @@ WMT24++는 Hugging Face `google/wmt24pp`에서 내려받습니다.
 ### 8.1 vLLM 서버 실행
 
 ```bash
-./scripts/serve_vllm.sh gpt_oss_120b 8000
+./scripts/serve_vllm.sh gemma3_27b_it 8000
 ```
 
 ### 8.2 번역 생성
 
 ```bash
-./scripts/generate.sh run1 wmt24pp en-ko_KR gpt_oss_120b http://localhost:8000/v1
+./scripts/generate.sh run1 wmt24pp en-ko_KR gemma3_27b_it http://localhost:8000/v1
 ```
 
 - 기본 동시성: 16 (`CONCURRENCY`로 변경 가능)
@@ -254,7 +271,7 @@ WMT24++는 Hugging Face `google/wmt24pp`에서 내려받습니다.
 ### 8.3 메트릭 점수화
 
 ```bash
-./scripts/score.sh run1 xcomet_mqm wmt24pp en-ko_KR gpt_oss_120b
+./scripts/score.sh run1 xcomet_mqm wmt24pp en-ko_KR gemma3_27b_it
 ```
 
 ### 8.3.1 문서 문맥(context) 스코어링 (DocCOMET 스타일)
@@ -264,10 +281,10 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 
 ```bash
 # Reference 기반 (DocCOMET 스타일)
-./scripts/score.sh run1 xcomet_mqm_ctx wmt24pp en-ko_KR gpt_oss_120b
+./scripts/score.sh run1 xcomet_mqm_ctx wmt24pp en-ko_KR gemma3_27b_it
 
 # QE (reference 없음)
-./scripts/score.sh run1 xcomet_qe_ctx wmt24pp en-ko_KR gpt_oss_120b
+./scripts/score.sh run1 xcomet_qe_ctx wmt24pp en-ko_KR gemma3_27b_it
 ```
 
 - 문맥 구성: 같은 문서 내 **이전 N문장 + 현재 문장**을 separator로 연결
@@ -277,7 +294,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 ### 8.3.2 BLEU
 
 ```bash
-./scripts/score.sh run1 bleu wmt24pp en-ko_KR gpt_oss_120b
+./scripts/score.sh run1 bleu wmt24pp en-ko_KR gemma3_27b_it
 ```
 
 - BLEU는 **sentence BLEU**를 각 세그먼트에 기록하고, **corpus BLEU**는
@@ -290,7 +307,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 
 ```bash
 ./scripts/doc_combos.sh run1 wmt24pp en-ko_KR \
-  gpt_oss_120b,translategemma_27b_it,gemma3_27b_it \
+  gemma3_27b_it,translategemma_27b_it,qwen3_235b_a22b_instruct_2507 \
   xcomet_mqm,xcomet_qe,metricx24_ref,metricx24_qe,bleu
 ```
 
@@ -318,7 +335,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)
   - `DOC_ALIGN_MODE=gpt`로 LLM 정렬 사용 (필요: `DOC_ALIGN_API_BASE`, `DOC_ALIGN_MODEL_NAME`)
   - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt-oss-120b`이며, 번역 모델과 무관하게 고정 가능
-  - `DOC_ALIGN_MODEL_KEY`는 정렬 서버를 띄울 때 사용하는 **config 키**입니다. (예: `gpt_oss_120b`)
+  - `DOC_ALIGN_MODEL_KEY`는 정렬 서버를 띄울 때 사용하는 **config 키**입니다. (예: `gemma3_27b_it`)
   - `DOC_ALIGN_MAX_TOKENS`로 정렬 응답 길이 제어 (기본 64000)
   - `MANAGE_ALIGN_SERVER=1`이면 정렬용 vLLM 서버를 별도로 자동 실행/종료합니다.
   - `DOC_ALIGN_RESPONSE_FORMAT=json_schema`로 구조화 출력 요청 (미지원 시 자동 폴백)
@@ -354,7 +371,7 @@ bash scripts/pipeline_generate.sh run1 wmt24pp all all http://localhost:8000/v1
 
 # 2) 정렬 (doc → sent)
 DOC_ALIGN_MODE=gpt MANAGE_ALIGN_SERVER=1 \
-DOC_ALIGN_MODEL_KEY=gpt_oss_120b DOC_ALIGN_MODEL_NAME=gpt-oss-120b \
+DOC_ALIGN_MODEL_KEY=gemma3_27b_it DOC_ALIGN_MODEL_NAME=gemma-3-27b-it \
 DOC_ALIGN_API_BASE=http://localhost:8001/v1 \
 DOC_ALIGN_MAX_TOKENS=64000 \
 bash scripts/pipeline_align.sh run1 wmt24pp all all
@@ -371,7 +388,7 @@ bash scripts/pipeline_score.sh run1 wmt24pp all all all
 ### 8.7 공통 선택 옵션 (datasets / models / metrics / lps)
 
 - `DATASETS`: `all` 또는 `wmt24pp,reference50`
-- `MODELS`: `all` 또는 `gpt_oss_120b,qwen3_235b_a22b_instruct_2507`
+- `MODELS`: `all` 또는 `gemma3_27b_it,qwen3_235b_a22b_instruct_2507`
 - `METRICS`: `all` 또는 `metricx24_qe,xcomet_xxl_qe`
 - `LPS`: `all` 또는 `en-ko_KR,en-ja_JP`
 
@@ -430,6 +447,7 @@ bash scripts/run_wmt24pp_all.sh run1 all http://localhost:8000/v1
 - `scripts/uv_sync.sh`: `uv sync` 래퍼
 - `scripts/doctor.sh`: 환경 점검
 - `scripts/install_vllm_gptoss.sh`: gpt-oss용 vLLM 설치
+- `scripts/setup_vllm_env.sh`: vLLM 전용 uv 환경 자동 생성
 - `scripts/fetch_metricx.sh`: MetricX 클론 + 의존성 설치
 - `scripts/prepare_data.sh`: 데이터 준비
 - `scripts/serve_vllm.sh`: vLLM 서버 실행
@@ -477,7 +495,7 @@ bash scripts/run_wmt24pp_all.sh run1 all http://localhost:8000/v1
 
 ### 10.2 모델 (`configs/models/*.yaml`)
 
-예: `configs/models/gpt_oss_120b.yaml`
+예: `configs/models/gemma3_27b_it.yaml`
 
 - `hf_model_id`: vLLM이 서빙할 모델
 - `served_model_name`: OpenAI 요청 시 모델명
