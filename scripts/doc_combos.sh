@@ -24,6 +24,7 @@ DOC_ALIGN_MODEL="${DOC_ALIGN_MODEL:-}"
 DOC_ALIGN_API_BASE="${DOC_ALIGN_API_BASE:-$API_BASE}"
 DOC_ALIGN_MODEL_KEY="${DOC_ALIGN_MODEL_KEY:-gpt_oss_120b}"
 DOC_ALIGN_MODEL_NAME="${DOC_ALIGN_MODEL_NAME:-gpt-oss-120b}"
+DOC_ALIGN_MAX_TOKENS="${DOC_ALIGN_MAX_TOKENS:-64000}"
 MANAGE_ALIGN_SERVER="${MANAGE_ALIGN_SERVER:-0}"
 DOC_ALIGN_RESPONSE_FORMAT="${DOC_ALIGN_RESPONSE_FORMAT:-json_schema}"
 
@@ -271,6 +272,7 @@ for MODEL_KEY in "${MODEL_LIST[@]}"; do
       $( [ -n "$DOC_ALIGN_MODEL" ] && echo "--align-model $DOC_ALIGN_MODEL" ) \
       $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-api-base $DOC_ALIGN_API_BASE" ) \
       $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-model-name $DOC_ALIGN_MODEL_NAME" ) \
+      $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-max-tokens $DOC_ALIGN_MAX_TOKENS" ) \
       $( [ "$DOC_ALIGN_MODE" = "gpt" ] && echo "--align-response-format $DOC_ALIGN_RESPONSE_FORMAT" )
 
     if [ "$DOC_MARKER_ENABLE" = "1" ]; then

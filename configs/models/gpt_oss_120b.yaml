@@ -13,7 +13,7 @@ vllm:
   # If you have fewer GPUs, reduce this accordingly.
   tensor_parallel_size: 8
   gpu_memory_utilization: 0.90
-  max_model_len: 4096
+  max_model_len: 128000
   trust_remote_code: false
   extra_args: []
 

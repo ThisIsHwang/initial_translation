@@ -494,7 +494,7 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--align-api-base", default=None)
     p_exp.add_argument("--align-model-name", default=None)
     p_exp.add_argument("--align-temperature", type=float, default=0.0)
-    p_exp.add_argument("--align-max-tokens", type=int, default=1024)
+    p_exp.add_argument("--align-max-tokens", type=int, default=64000)
     p_exp.add_argument("--align-response-format", choices=["none", "json_schema"], default="none")
 
     p_clean = sub.add_parser("clean")
