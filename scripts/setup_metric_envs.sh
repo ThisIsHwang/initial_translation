@@ -41,13 +41,13 @@ name = "$name"
 version = "0.0.0"
 dependencies = [
 EOF
-  echo "  \"evalmt[$extra] @ $ROOT_URL\"" >> "$dir/pyproject.toml"
+  echo "  \"evalmt[$extra] @ $ROOT_URL\"," >> "$dir/pyproject.toml"
   if [ -n "$extra_deps" ]; then
     IFS=',' read -r -a dep_list <<< "$extra_deps"
     for dep in "${dep_list[@]}"; do
       dep=$(echo "$dep" | xargs)
       if [ -n "$dep" ]; then
-        echo "  \"${dep}\"" >> "$dir/pyproject.toml"
+        echo "  \"${dep}\"," >> "$dir/pyproject.toml"
       fi
     done
   fi
