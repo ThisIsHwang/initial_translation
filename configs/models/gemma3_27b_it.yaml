@@ -9,7 +9,7 @@ vllm:
   # you can increase this (e.g., 2) but it will consume more GPUs.
   tensor_parallel_size: 1
   gpu_memory_utilization: 0.90
-  max_model_len: 4096
+  max_model_len: 128000
   trust_remote_code: false
   extra_args: []
 
@@ -24,5 +24,5 @@ prompt:
 generation_defaults:
   temperature: 0.0
   top_p: 1.0
-  max_tokens: 256
+  max_tokens: 64000
   stop: []

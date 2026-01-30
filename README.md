@@ -221,6 +221,12 @@ bash scripts/setup_vllm_env.sh
 ./scripts/serve_vllm.sh gemma3_27b_it 8000
 ```
 
+필요 시 Python 버전 지정:
+
+```bash
+VLLM_PYTHON=3.11 bash scripts/setup_vllm_env.sh
+```
+
 ---
 
 ## 6. MetricX 설치

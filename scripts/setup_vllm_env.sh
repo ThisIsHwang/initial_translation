@@ -12,6 +12,7 @@ ROOT_URL="file://$ROOT_DIR"
 ENV_ROOT="${ENV_ROOT:-.uv}"
 ENV_VLLM="${ENV_VLLM:-$ENV_ROOT/vllm}"
 ENV_FILE="${VLLM_ENV_FILE:-$ENV_ROOT/vllm_env.env}"
+VLLM_PYTHON="${VLLM_PYTHON:-3.11}"
 
 VLLM_PIP_SPEC="${VLLM_PIP_SPEC:-vllm}"
 VLLM_GPTOSS_INSTALL="${VLLM_GPTOSS_INSTALL:-0}"
@@ -39,11 +40,20 @@ EOF
 mkdir -p "$ENV_VLLM/src/evalmt_vllm_env"
 : > "$ENV_VLLM/src/evalmt_vllm_env/__init__.py"
 
-echo "==> uv sync --project $ENV_VLLM"
-uv sync --project "$ENV_VLLM"
+echo "==> uv sync --project $ENV_VLLM --python $VLLM_PYTHON"
+uv sync --project "$ENV_VLLM" --python "$VLLM_PYTHON"
 
 echo "==> Installing vLLM into $ENV_VLLM"
 uv --project "$ENV_VLLM" pip install "$VLLM_PIP_SPEC"
+
+echo "==> Verifying vLLM import"
+uv run --project "$ENV_VLLM" python - <<'PY'
+import importlib.util
+ok = importlib.util.find_spec("vllm") is not None
+print("vllm installed:", ok)
+if not ok:
+    raise SystemExit("vllm import failed")
+PY
 
 if [ "$VLLM_GPTOSS_INSTALL" = "1" ]; then
   echo "==> Installing gpt-oss vLLM flavor"
