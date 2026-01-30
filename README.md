@@ -305,6 +305,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - `DOC_ALIGN_MODE=gpt`로 LLM 정렬 사용 (필요: `DOC_ALIGN_API_BASE`, `DOC_ALIGN_MODEL_NAME`)
   - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt-oss-120b`이며, 번역 모델과 무관하게 고정 가능
   - `DOC_ALIGN_MODEL_KEY`는 정렬 서버를 띄울 때 사용하는 **config 키**입니다. (예: `gpt_oss_120b`)
+  - `DOC_ALIGN_MAX_TOKENS`로 정렬 응답 길이 제어 (기본 64000)
   - `MANAGE_ALIGN_SERVER=1`이면 정렬용 vLLM 서버를 별도로 자동 실행/종료합니다.
   - `DOC_ALIGN_RESPONSE_FORMAT=json_schema`로 구조화 출력 요청 (미지원 시 자동 폴백)
 - 스코어링 방식:
@@ -320,34 +321,49 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
 ./scripts/aggregate.sh run1
 ```
 
-### 8.5 한 번에 실행
+### 8.5 원샷 실행 (통합 파이프라인)
 
 ```bash
-./scripts/run_all.sh run1 wmt24pp all \
-  gpt_oss_120b,qwen3_235b_a22b_instruct_2507 \
-  xcomet_mqm,xcomet_qe
+# generate → align → score 순차 실행
+bash scripts/pipeline_all.sh run1 wmt24pp all all all http://localhost:8000/v1
 ```
 
-`run_all.sh`는 모델별로 **생성 후 vLLM 종료 → 점수화** 순서로 동작합니다.
+- `STAGES=gen,align,score`로 부분 실행 가능 (예: `STAGES=gen,score`)
+- `run_all.sh`는 레거시 원샷 스크립트이며, **모델별로 생성 후 vLLM 종료 → 점수화** 순서로 동작합니다.
 
-### 8.6 파이프라인 분리 실행 (generate / align / score)
+### 8.6 단계별 실행 (generate / align / score)
 
 ```bash
-# 생성
+# 1) 생성
 MANAGE_SERVER=1 \
 bash scripts/pipeline_generate.sh run1 wmt24pp all all http://localhost:8000/v1
 
-# 정렬 (doc → sent)
+# 2) 정렬 (doc → sent)
 DOC_ALIGN_MODE=gpt MANAGE_ALIGN_SERVER=1 \
 DOC_ALIGN_MODEL_KEY=gpt_oss_120b DOC_ALIGN_MODEL_NAME=gpt-oss-120b \
 DOC_ALIGN_API_BASE=http://localhost:8001/v1 \
+DOC_ALIGN_MAX_TOKENS=64000 \
 bash scripts/pipeline_align.sh run1 wmt24pp all all
 
-# 평가
+# 3) 평가
 bash scripts/pipeline_score.sh run1 wmt24pp all all all
 ```
 
-### 8.7 UV 환경 분리 실행
+**정렬 단계 설명**
+- 문서 번역 결과를 문장 단위로 복원(`__from_doc.jsonl`)합니다.
+- `DOC_ALIGN_MODEL_KEY`는 vLLM 서버용 **config 키**, `DOC_ALIGN_MODEL_NAME`은 API에 노출된 **served name**입니다.
+- `DOC_ALIGN_MAX_TOKENS` 기본값은 **64000**입니다. (응답이 잘릴 경우 상향)
+
+### 8.7 공통 선택 옵션 (datasets / models / metrics / lps)
+
+- `DATASETS`: `all` 또는 `wmt24pp,reference50`
+- `MODELS`: `all` 또는 `gpt_oss_120b,qwen3_235b_a22b_instruct_2507`
+- `METRICS`: `all` 또는 `metricx24_qe,xcomet_xxl_qe`
+- `LPS`: `all` 또는 `en-ko_KR,en-ja_JP`
+
+`all`은 `configs/*` 기준으로 자동 탐색하며, 실제 데이터는 `data/<dataset>/*.jsonl`에서 확인합니다.
+
+### 8.8 UV 환경 분리 실행
 
 - vLLM 서빙: `UV_PROJECT_SERVE=/path/to/uv`
 - 생성: `UV_PROJECT_GEN=/path/to/uv`
@@ -356,7 +372,14 @@ bash scripts/pipeline_score.sh run1 wmt24pp all all all
 - **메트릭별** uv:  
   `METRIC_UV_PROJECTS="metricx24_qe=/pathA,xcomet_xxl_qe=/pathB,cometkiwi_wmt23_xxl_qe=/pathC"`
 
-각 단계 스크립트는 종료 시 vLLM을 자동 종료하며, 모델 변경 시에도 기존 서버를 먼저 종료합니다.
+각 단계 스크립트는 종료 시 vLLM을 자동 종료하며, **모델 변경 시에도 기존 서버를 먼저 종료**합니다.
+
+### 8.9 wmt24pp 풀세트 (요청 모델/메트릭)
+
+```bash
+# 요청된 모델/메트릭 세트
+bash scripts/run_wmt24pp_all.sh run1 all http://localhost:8000/v1
+```
 
 ---
 
@@ -379,6 +402,7 @@ bash scripts/pipeline_score.sh run1 wmt24pp all all all
 - `scripts/pipeline_align.sh`: 얼라인(문서→문장) 전용 파이프라인
 - `scripts/pipeline_score.sh`: 평가 전용 파이프라인
 - `scripts/pipeline_all.sh`: generate → align → score 통합 실행
+- `scripts/_pipeline_lib.sh`: 파이프라인 공통 유틸 함수
 - `scripts/doc_combos.sh`: 문장/문단 4조합 평가
 - `scripts/clean_gpu.sh`: 스코어링 전 GPU 점유 프로세스 종료 (옵션)
 - `scripts/run_reference50_doc_ctx.sh`: reference50 문단 번역 → 문장 분절 → context 스코어링

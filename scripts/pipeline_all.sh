@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=./_pipeline_lib.sh
+source "$SCRIPT_DIR/_pipeline_lib.sh"
+
 RUN_NAME="${1:?RUN_NAME required}"
 DATASETS="${2:?DATASETS required (comma or all)}"
 LPS="${3:-all}"
@@ -23,17 +27,17 @@ run_stage() {
       ./scripts/pipeline_score.sh "$RUN_NAME" "$DATASETS" "$LPS" "$MODELS" "$METRICS"
       ;;
     *)
-      echo "Unknown stage: $stage"
-      exit 1
+      pipeline_die "Unknown stage: $stage"
       ;;
   esac
 }
 
 IFS=',' read -r -a STAGE_LIST <<< "$STAGES"
 for STAGE in "${STAGE_LIST[@]}"; do
+  pipeline_log "== Stage: $STAGE =="
   run_stage "$STAGE"
 done
 
 ./scripts/aggregate.sh "$RUN_NAME"
 uv run evalmt-aggregate-combos --run "$RUN_NAME"
-echo "✅ Done. See outputs/$RUN_NAME/summary.csv and summary_combos.csv"
+pipeline_log "✅ Done. See outputs/$RUN_NAME/summary.csv and summary_combos.csv"

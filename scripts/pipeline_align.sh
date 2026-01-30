@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=./_pipeline_lib.sh
+source "$SCRIPT_DIR/_pipeline_lib.sh"
+
 RUN_NAME="${1:?RUN_NAME required}"
 DATASETS="${2:?DATASETS required (comma or all)}"
 LPS="${3:-all}"
@@ -28,77 +32,21 @@ MANAGE_ALIGN_SERVER="${MANAGE_ALIGN_SERVER:-0}"
 
 CLEAN_GPU="${CLEAN_GPU:-1}"
 
-if [ "$DOC_GEN_SEP" = "\\n" ]; then
-  DOC_GEN_SEP=$'\n'
-fi
-if [ "$DOC_SPLIT_SEP" = "\\n" ]; then
-  DOC_SPLIT_SEP=$'\n'
-fi
+DOC_GEN_SEP="$(pipeline_normalize_sep "$DOC_GEN_SEP")"
+DOC_SPLIT_SEP="$(pipeline_normalize_sep "$DOC_SPLIT_SEP")"
 
-resolve_datasets() {
-  if [ "$DATASETS" = "all" ]; then
-    DATASET_LIST=()
-    if [ -d configs/datasets ]; then
-      mapfile -t DATASET_LIST < <(ls configs/datasets/*.yaml 2>/dev/null | sed 's#.*/##; s/\\.yaml$//' | rg -v '_doc$' || true)
-    fi
-    if [ "${#DATASET_LIST[@]}" -eq 0 ] && [ -d data ]; then
-      mapfile -t DATASET_LIST < <(ls -1 data 2>/dev/null | rg -v '_doc$' || true)
-    fi
-  else
-    IFS=',' read -r -a DATASET_LIST <<< "$DATASETS"
-  fi
-  if [ "${#DATASET_LIST[@]}" -eq 0 ]; then
-    echo "No datasets found."
-    exit 1
-  fi
-}
-
-resolve_models() {
-  if [ "$MODELS" = "all" ]; then
-    mapfile -t MODEL_LIST < <(ls configs/models/*.yaml 2>/dev/null | sed 's#.*/##; s/\\.yaml$//' || true)
-  else
-    IFS=',' read -r -a MODEL_LIST <<< "$MODELS"
-  fi
-  if [ "${#MODEL_LIST[@]}" -eq 0 ]; then
-    echo "No models found."
-    exit 1
-  fi
-}
-
-get_lp_list() {
-  local dataset="$1"
-  if [ "$LPS" = "all" ]; then
-    if [ -d "data/$dataset" ]; then
-      ls "data/$dataset"/*.jsonl 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\\.jsonl$//' | sort -u
-    fi
-  else
-    echo "${LPS//,/ }"
-  fi
-}
-
-resolve_datasets
-resolve_models
+mapfile -t DATASET_LIST < <(pipeline_list_datasets "$DATASETS")
+[ "${#DATASET_LIST[@]}" -gt 0 ] || pipeline_die "No datasets found."
+mapfile -t MODEL_LIST < <(pipeline_list_models "$MODELS")
+[ "${#MODEL_LIST[@]}" -gt 0 ] || pipeline_die "No models found."
 
 if [ "$CLEAN_GPU" = "1" ]; then
   ./scripts/clean_gpu.sh
 fi
 
-uv_run_docops() {
-  local project="${UV_PROJECT_DOCOPS:-${UV_PROJECT_ALIGN:-${UV_PROJECT:-}}}"
-  if [ -n "$project" ]; then
-    uv run --project "$project" "$@"
-  else
-    uv run "$@"
-  fi
-}
-
 ALIGN_PID=""
 if [ "$DOC_ALIGN_MODE" = "gpt" ] && [ "$MANAGE_ALIGN_SERVER" = "1" ]; then
-  ALIGN_HOST=$(echo "$DOC_ALIGN_API_BASE" | sed -E 's#^https?://([^/:]+).*#\\1#')
-  ALIGN_PORT=$(echo "$DOC_ALIGN_API_BASE" | sed -E 's#^https?://[^:/]+:([0-9]+).*#\\1#')
-  if [ -z "$ALIGN_PORT" ] || [ "$ALIGN_PORT" = "$DOC_ALIGN_API_BASE" ]; then
-    ALIGN_PORT=8001
-  fi
+  read -r ALIGN_HOST ALIGN_PORT < <(pipeline_api_host_port "$DOC_ALIGN_API_BASE")
   ./scripts/stop_vllm.sh "$ALIGN_PORT" || true
   if [ "$ALIGN_HOST" = "localhost" ] || [ "$ALIGN_HOST" = "127.0.0.1" ]; then
     if command -v setsid >/dev/null 2>&1; then
@@ -112,9 +60,9 @@ if [ "$DOC_ALIGN_MODE" = "gpt" ] && [ "$MANAGE_ALIGN_SERVER" = "1" ]; then
 fi
 
 for dataset in "${DATASET_LIST[@]}"; do
-  read -r -a LP_LIST <<< "$(get_lp_list "$dataset")"
+  mapfile -t LP_LIST < <(pipeline_list_lps "$dataset" "$LPS")
   if [ "${#LP_LIST[@]}" -eq 0 ]; then
-    echo "No LPs found for dataset $dataset"
+    pipeline_log "No LPs found for dataset $dataset"
     continue
   fi
 
@@ -129,17 +77,17 @@ for dataset in "${DATASET_LIST[@]}"; do
       SENT_FROM_DOC="outputs/${RUN_NAME}/gen/${dataset}/${LP}/${MODEL_KEY}__from_doc.jsonl"
 
       if [ -f "$SENT_GEN" ]; then
-        uv_run_docops evalmt-docops to-doc \
+        pipeline_docops to-doc \
           --input "$SENT_GEN" \
           --output "$DOC_FROM_SENT" \
           --sep "$DOC_GEN_SEP" \
           --fields "source,reference,hypothesis"
       else
-        echo "Missing sentence gen: $SENT_GEN (skip from_sent)"
+        pipeline_log "Missing sentence gen: $SENT_GEN (skip from_sent)"
       fi
 
       if [ ! -f "$DOC_GEN" ]; then
-        echo "Missing doc gen: $DOC_GEN (skip expand)"
+        pipeline_log "Missing doc gen: $DOC_GEN (skip expand)"
         continue
       fi
 
@@ -152,7 +100,7 @@ for dataset in "${DATASET_LIST[@]}"; do
         SPLITTER="marker"
       fi
 
-      uv_run_docops evalmt-docops expand \
+      pipeline_docops expand \
         --base "data/${dataset}/${LP}.jsonl" \
         --doc "$DOC_FOR_EXP" \
         --output "$SENT_FROM_DOC" \
@@ -176,7 +124,7 @@ for dataset in "${DATASET_LIST[@]}"; do
         if [ -f "$DOC_GEN_RAW" ]; then
           RAW_IN="$DOC_GEN_RAW"
         fi
-        uv_run_docops evalmt-docops clean \
+        pipeline_docops clean \
           --input "$RAW_IN" \
           --output "$DOC_GEN" \
           --marker-regex "$DOC_MARKER_REGEX" \
