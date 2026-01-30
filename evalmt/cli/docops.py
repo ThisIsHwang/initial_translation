@@ -8,16 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..utils.jsonl import iter_jsonl, write_jsonl
+from ..utils.text import infer_order_field, join_with_sep, normalize_text
 from ..align.labse_align import AlignConfig, align_with_labse
 from ..generation.vllm_openai import chat_completion, extract_text
-
-
-def _normalize_text(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value.strip()
-    return str(value).strip()
 
 
 def _safe_json_loads(text: str) -> Dict[str, Any]:
@@ -43,15 +36,6 @@ def _safe_json_loads(text: str) -> Dict[str, Any]:
     raise ValueError(f"Failed to parse JSON from alignment model response:\n{text}")
 
 
-def _infer_order_field(rows: List[Dict[str, Any]], order_field: Optional[str]) -> Optional[str]:
-    if order_field:
-        return order_field
-    for cand in ("segment_id", "no", "idx"):
-        if any(cand in r for r in rows):
-            return cand
-    return None
-
-
 def _group_indices(
     rows: List[Dict[str, Any]],
     *,
@@ -59,7 +43,7 @@ def _group_indices(
     order_field: Optional[str],
 ) -> Tuple[List[Any], Dict[Any, List[int]]]:
     has_doc_field = doc_field and any(r.get(doc_field) is not None for r in rows)
-    order_field = _infer_order_field(rows, order_field)
+    order_field = infer_order_field(rows, order_field)
 
     groups: Dict[Any, List[int]] = {}
     order: List[Any] = []
@@ -84,20 +68,6 @@ def _group_indices(
     return order, groups
 
 
-def _join_with_sep(parts: List[str], sep: str) -> str:
-    parts = [p for p in parts if p]
-    if not parts:
-        return ""
-    if not sep:
-        return " ".join(parts)
-    # If sep has no whitespace/newline, add spaces around it.
-    if not sep.isspace() and "\n" not in sep and "\t" not in sep and " " not in sep:
-        glue = f" {sep} "
-    else:
-        glue = sep
-    return glue.join(parts)
-
-
 def _build_doc_rows(
     rows: List[Dict[str, Any]],
     *,
@@ -112,7 +82,7 @@ def _build_doc_rows(
 ) -> List[Dict[str, Any]]:
     doc_order, groups = _group_indices(rows, doc_field=doc_field, order_field=order_field)
     out_rows: List[Dict[str, Any]] = []
-    order_field = _infer_order_field(rows, order_field)
+    order_field = infer_order_field(rows, order_field)
 
     for doc_id in doc_order:
         idxs = groups[doc_id]
@@ -122,7 +92,7 @@ def _build_doc_rows(
             base["id"] = f"doc:{doc_id}"
 
         for field in fields:
-            parts = [_normalize_text(rows[i].get(field)) for i in idxs]
+            parts = [normalize_text(rows[i].get(field)) for i in idxs]
             if marker_template and field in marker_fields:
                 out = ""
                 for k, part in enumerate(parts, start=1):
@@ -133,7 +103,7 @@ def _build_doc_rows(
                         out = f"{marker}{marker_join}{part}" if marker_join else f"{marker}{part}"
                 base[field] = out
             else:
-                base[field] = _join_with_sep(parts, sep)
+                base[field] = join_with_sep(parts, sep)
 
         base["segment_count"] = len(idxs)
         if include_segment_ids:
@@ -258,8 +228,8 @@ def cmd_expand(args: argparse.Namespace) -> None:
     if not doc_rows:
         raise ValueError(f"No rows in {doc_path}")
 
-    doc_field = args.doc_field
-    order_field = _infer_order_field(base_rows, args.order_field)
+        doc_field = args.doc_field
+        order_field = infer_order_field(base_rows, args.order_field)
 
     doc_has_field = doc_field and any(r.get(doc_field) is not None for r in doc_rows)
     doc_map: Dict[Any, Dict[str, Any]] = {}
@@ -285,7 +255,7 @@ def cmd_expand(args: argparse.Namespace) -> None:
         else:
             doc_row = doc_rows[doc_idx] if doc_idx < len(doc_rows) else {}
 
-        doc_hyp = _normalize_text(doc_row.get(args.hyp_field))
+        doc_hyp = normalize_text(doc_row.get(args.hyp_field))
         if args.align_mode == "gpt":
             if not args.align_api_base or not args.align_model_name:
                 raise ValueError("align_mode=gpt requires --align-api-base and --align-model-name")

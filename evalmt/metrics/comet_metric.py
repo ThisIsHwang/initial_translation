@@ -6,40 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from comet import download_model, load_from_checkpoint
 
 from ..utils.jsonl import iter_jsonl, write_jsonl
+from ..utils.text import infer_order_field, join_with_sep, normalize_text
 from .base import BaseMetric
 from .registry import register_metric
 
 
 @register_metric("comet")
 class CometMetric(BaseMetric):
-    @staticmethod
-    def _normalize_text(value: Any) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, str):
-            return value.strip()
-        return str(value).strip()
-
-    @staticmethod
-    def _join_with_sep(parts: List[str], sep: str, *, add_space: bool) -> str:
-        parts = [p for p in parts if p]
-        if not parts:
-            return ""
-        if not sep:
-            return " ".join(parts)
-        if add_space:
-            return f" {sep} ".join(parts)
-        return sep.join(parts)
-
-    @staticmethod
-    def _infer_order_field(rows: List[Dict[str, Any]], order_field: Optional[str]) -> Optional[str]:
-        if order_field:
-            return order_field
-        for cand in ("segment_id", "no", "idx"):
-            if any(cand in r for r in rows):
-                return cand
-        return None
-
     def _build_context_fields(
         self,
         rows: List[Dict[str, Any]],
@@ -71,16 +44,16 @@ class CometMetric(BaseMetric):
 
         if window <= 0:
             for i, r in enumerate(rows):
-                cur_src = self._normalize_text(r.get(src_field))
-                cur_mt = self._normalize_text(r.get(mt_field))
-                cur_ref = self._normalize_text(r.get(ref_field))
+                cur_src = normalize_text(r.get(src_field))
+                cur_mt = normalize_text(r.get(mt_field))
+                cur_ref = normalize_text(r.get(ref_field))
                 ctx_src[i] = _maybe_append(cur_src, cur_src, False)
                 ctx_mt[i] = _maybe_append(cur_mt, cur_mt, False)
                 ctx_ref[i] = _maybe_append(cur_ref, cur_ref, False)
             return ctx_src, ctx_mt, ctx_ref
 
         has_doc_field = doc_field and any(r.get(doc_field) is not None for r in rows)
-        order_field = self._infer_order_field(rows, order_field)
+        order_field = infer_order_field(rows, order_field)
 
         doc_groups: Dict[Any, List[int]] = {}
         for i, r in enumerate(rows):
@@ -103,22 +76,22 @@ class CometMetric(BaseMetric):
                 start = max(0, pos - window)
                 ctx_idxs = idxs_sorted[start:pos]
 
-                src_parts = [self._normalize_text(rows[j].get(src_field)) for j in ctx_idxs]
-                mt_parts = [self._normalize_text(rows[j].get(mt_field)) for j in ctx_idxs]
-                ref_parts = [self._normalize_text(rows[j].get(ref_field)) for j in ctx_idxs]
+                src_parts = [normalize_text(rows[j].get(src_field)) for j in ctx_idxs]
+                mt_parts = [normalize_text(rows[j].get(mt_field)) for j in ctx_idxs]
+                ref_parts = [normalize_text(rows[j].get(ref_field)) for j in ctx_idxs]
 
-                src_parts.append(self._normalize_text(rows[idx].get(src_field)))
-                mt_parts.append(self._normalize_text(rows[idx].get(mt_field)))
-                ref_parts.append(self._normalize_text(rows[idx].get(ref_field)))
+                src_parts.append(normalize_text(rows[idx].get(src_field)))
+                mt_parts.append(normalize_text(rows[idx].get(mt_field)))
+                ref_parts.append(normalize_text(rows[idx].get(ref_field)))
 
                 has_context = len(ctx_idxs) > 0
-                cur_src = self._normalize_text(rows[idx].get(src_field))
-                cur_mt = self._normalize_text(rows[idx].get(mt_field))
-                cur_ref = self._normalize_text(rows[idx].get(ref_field))
+                cur_src = normalize_text(rows[idx].get(src_field))
+                cur_mt = normalize_text(rows[idx].get(mt_field))
+                cur_ref = normalize_text(rows[idx].get(ref_field))
 
-                src_seq = self._join_with_sep(src_parts, sep, add_space=sep_with_spaces)
-                mt_seq = self._join_with_sep(mt_parts, sep, add_space=sep_with_spaces)
-                ref_seq = self._join_with_sep(ref_parts, sep, add_space=sep_with_spaces)
+                src_seq = join_with_sep(src_parts, sep, add_space=sep_with_spaces)
+                mt_seq = join_with_sep(mt_parts, sep, add_space=sep_with_spaces)
+                ref_seq = join_with_sep(ref_parts, sep, add_space=sep_with_spaces)
 
                 ctx_src[idx] = _maybe_append(src_seq, cur_src, has_context)
                 ctx_mt[idx] = _maybe_append(mt_seq, cur_mt, has_context)
