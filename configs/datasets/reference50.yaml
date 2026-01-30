@@ -1,0 +1,8 @@
+# WMT24++ dataset
+# Repo: google/wmt24pp (Hugging Face)
+
+type: reference50
+hf_repo: N/A
+repo_type: dataset
+
+prepared_dir: data/reference50

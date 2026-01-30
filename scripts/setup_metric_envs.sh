@@ -15,15 +15,31 @@ ENV_METRICX="${ENV_METRICX:-$ENV_ROOT/metricx}"
 ENV_BLEU="${ENV_BLEU:-$ENV_ROOT/bleu}"
 ENV_FILE="${METRIC_ENV_FILE:-$ENV_ROOT/metric_envs.env}"
 
+# Optional extra pins (comma-separated)
+COMET_EXTRA_DEPS="${COMET_EXTRA_DEPS:-}"
+METRICX_EXTRA_DEPS="${METRICX_EXTRA_DEPS:-transformers>=4.41.0,tokenizers>=0.15.2}"
+BLEU_EXTRA_DEPS="${BLEU_EXTRA_DEPS:-}"
+
 write_project() {
   local dir="$1"
   local name="$2"
   local extra="$3"
+  local extra_deps="$4"
   local pkg_name
   pkg_name=$(echo "$name" | tr '-' '_' | tr '.' '_')
   mkdir -p "$dir"
   mkdir -p "$dir/src/$pkg_name"
   : > "$dir/src/$pkg_name/__init__.py"
+  local deps_block="  \"evalmt[$extra] @ $ROOT_URL\""
+  if [ -n "$extra_deps" ]; then
+    IFS=',' read -r -a dep_list <<< "$extra_deps"
+    for dep in "${dep_list[@]}"; do
+      dep=$(echo "$dep" | xargs)
+      if [ -n "$dep" ]; then
+        deps_block="${deps_block}\n  \"${dep}\""
+      fi
+    done
+  fi
   cat > "$dir/pyproject.toml" <<EOF
 [build-system]
 requires = ["hatchling>=1.25.0"]
@@ -33,7 +49,7 @@ build-backend = "hatchling.build"
 name = "$name"
 version = "0.0.0"
 dependencies = [
-  "evalmt[$extra] @ $ROOT_URL"
+$deps_block
 ]
 
 [tool.hatch.metadata]
@@ -51,9 +67,9 @@ sync_project() {
 }
 
 echo "Setting up metric envs under $ENV_ROOT"
-write_project "$ENV_COMET" "evalmt-comet-env" "comet"
-write_project "$ENV_METRICX" "evalmt-metricx-env" "metricx"
-write_project "$ENV_BLEU" "evalmt-bleu-env" "bleu"
+write_project "$ENV_COMET" "evalmt-comet-env" "comet" "$COMET_EXTRA_DEPS"
+write_project "$ENV_METRICX" "evalmt-metricx-env" "metricx" "$METRICX_EXTRA_DEPS"
+write_project "$ENV_BLEU" "evalmt-bleu-env" "bleu" "$BLEU_EXTRA_DEPS"
 
 sync_project "$ENV_COMET"
 sync_project "$ENV_METRICX"

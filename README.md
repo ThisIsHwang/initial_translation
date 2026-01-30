@@ -430,6 +430,14 @@ source .uv/metric_envs.env
 
 이 구성은 **metricx와 comet을 완전히 분리된 환경**으로 실행합니다.
 
+문제 해결:
+- `tokenizers`/`transformers` 버전 충돌이 나면, 아래처럼 핀을 지정해서 재생성하세요.
+
+```bash
+METRICX_EXTRA_DEPS="transformers>=4.41.0,tokenizers>=0.15.2" \
+bash scripts/setup_metric_envs.sh
+```
+
 각 단계 스크립트는 종료 시 vLLM을 자동 종료하며, **모델 변경 시에도 기존 서버를 먼저 종료**합니다.
 
 ### 8.9 wmt24pp 풀세트 (요청 모델/메트릭)
