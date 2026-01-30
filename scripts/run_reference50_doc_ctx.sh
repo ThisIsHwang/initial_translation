@@ -45,6 +45,12 @@ if [ "$DOC_SPLIT_SEP" = "\\n" ]; then
   DOC_SPLIT_SEP=$'\n'
 fi
 
+if [ "$DOC_ALIGN_MODE" = "gpt" ]; then
+  DOC_ALIGN_MODEL_KEY="gpt_oss_120b"
+  DOC_ALIGN_MODEL_NAME="gpt-oss-120b"
+  echo "Align model forced to gpt-oss (gpt_oss_120b / gpt-oss-120b)."
+fi
+
 IFS=',' read -r -a LP_LIST <<< "$LPS"
 IFS=',' read -r -a MODEL_LIST <<< "$MODELS"
 IFS=',' read -r -a METRIC_LIST <<< "$METRICS"

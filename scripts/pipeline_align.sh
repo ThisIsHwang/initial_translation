@@ -44,6 +44,12 @@ if [ "$CLEAN_GPU" = "1" ]; then
   ./scripts/clean_gpu.sh
 fi
 
+if [ "$DOC_ALIGN_MODE" = "gpt" ]; then
+  DOC_ALIGN_MODEL_KEY="gpt_oss_120b"
+  DOC_ALIGN_MODEL_NAME="gpt-oss-120b"
+  pipeline_log "Align model forced to gpt-oss (gpt_oss_120b / gpt-oss-120b)."
+fi
+
 ALIGN_PID=""
 if [ "$DOC_ALIGN_MODE" = "gpt" ] && [ "$MANAGE_ALIGN_SERVER" = "1" ]; then
   read -r ALIGN_HOST ALIGN_PORT < <(pipeline_api_host_port "$DOC_ALIGN_API_BASE")

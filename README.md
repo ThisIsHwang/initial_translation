@@ -334,8 +334,9 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - `DOC_ALIGN_META=1`이면 `align_score`, `align_span`, `align_low_conf`를 출력에 포함
   - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)
   - `DOC_ALIGN_MODE=gpt`로 LLM 정렬 사용 (필요: `DOC_ALIGN_API_BASE`, `DOC_ALIGN_MODEL_NAME`)
-  - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt-oss-120b`이며, 번역 모델과 무관하게 고정 가능
-  - `DOC_ALIGN_MODEL_KEY`는 정렬 서버를 띄울 때 사용하는 **config 키**입니다. (예: `gemma3_27b_it`)
+  - **GPT 정렬은 gpt‑oss로 고정**됩니다. (번역 모델과 무관)
+  - `DOC_ALIGN_MODEL_NAME` 기본값은 `gpt-oss-120b`
+  - `DOC_ALIGN_MODEL_KEY`는 정렬 서버를 띄울 때 사용하는 **config 키**입니다. (예: `gpt_oss_120b`)
   - `DOC_ALIGN_MAX_TOKENS`로 정렬 응답 길이 제어 (기본 64000)
   - `MANAGE_ALIGN_SERVER=1`이면 정렬용 vLLM 서버를 별도로 자동 실행/종료합니다.
   - `DOC_ALIGN_RESPONSE_FORMAT=json_schema`로 구조화 출력 요청 (미지원 시 자동 폴백)
@@ -371,7 +372,7 @@ bash scripts/pipeline_generate.sh run1 wmt24pp all all http://localhost:8000/v1
 
 # 2) 정렬 (doc → sent)
 DOC_ALIGN_MODE=gpt MANAGE_ALIGN_SERVER=1 \
-DOC_ALIGN_MODEL_KEY=gemma3_27b_it DOC_ALIGN_MODEL_NAME=gemma-3-27b-it \
+DOC_ALIGN_MODEL_KEY=gpt_oss_120b DOC_ALIGN_MODEL_NAME=gpt-oss-120b \
 DOC_ALIGN_API_BASE=http://localhost:8001/v1 \
 DOC_ALIGN_MAX_TOKENS=64000 \
 bash scripts/pipeline_align.sh run1 wmt24pp all all
