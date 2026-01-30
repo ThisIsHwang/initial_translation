@@ -47,6 +47,11 @@ class MetricXMetric(BaseMetric):
 
         env = dict(os.environ)
         env["PYTHONPATH"] = str(metricx_repo) + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+        # MetricX is unstable on multi-GPU; force single GPU by default.
+        cuda_override = str(self.cfg.get("cuda_visible_devices", "")).strip()
+        if not cuda_override:
+            cuda_override = os.environ.get("METRICX_CUDA_VISIBLE_DEVICES", "").strip()
+        env["CUDA_VISIBLE_DEVICES"] = cuda_override or "0"
 
         module = "metricx24.predict" if variant == "metricx24" else "metricx23.predict"
         cmd = [
