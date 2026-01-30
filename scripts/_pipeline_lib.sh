@@ -182,3 +182,18 @@ pipeline_metric_requires_reference() {
   fi
   return 1
 }
+
+pipeline_force_stop_vllm() {
+  local ports=("$@")
+  if [ "${#ports[@]}" -eq 0 ]; then
+    ports=(8000 8001)
+  fi
+  for port in "${ports[@]}"; do
+    if [ -x ./scripts/stop_vllm.sh ]; then
+      ./scripts/stop_vllm.sh "$port" || true
+    fi
+  done
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -f "vllm" 2>/dev/null || true
+  fi
+}

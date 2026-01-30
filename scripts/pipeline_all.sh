@@ -13,6 +13,8 @@ METRICS="${5:-all}"
 API_BASE="${6:-http://localhost:8000/v1}"
 
 STAGES="${STAGES:-gen,align,score}"
+FORCE_STOP_VLLM="${FORCE_STOP_VLLM:-1}"
+FORCE_STOP_PORTS="${FORCE_STOP_PORTS:-8000,8001}"
 
 run_stage() {
   local stage="$1"
@@ -35,6 +37,10 @@ run_stage() {
 IFS=',' read -r -a STAGE_LIST <<< "$STAGES"
 for STAGE in "${STAGE_LIST[@]}"; do
   pipeline_log "== Stage: $STAGE =="
+  if [ "$FORCE_STOP_VLLM" = "1" ]; then
+    IFS=',' read -r -a _ports <<< "$FORCE_STOP_PORTS"
+    pipeline_force_stop_vllm "${_ports[@]}"
+  fi
   run_stage "$STAGE"
 done
 
