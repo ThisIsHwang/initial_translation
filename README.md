@@ -285,7 +285,8 @@ WMT24++는 Hugging Face `google/wmt24pp`에서 내려받습니다.
 - TranslateGemma 전용 메시지 포맷은 **structured user content**로 전송됩니다.
   - 모델 config에서 `message_format: translategemma`를 사용
   - 언어 코드가 맞지 않을 때는 아래 매핑을 사용
-  - TranslateGemma는 **content.text에 원문만** 넣어 전송합니다 (프롬프트 템플릿 미사용)
+  - TranslateGemma는 아래 태그 포맷으로 **plain text**를 전송합니다 (프롬프트 템플릿 미사용)
+    - `<<<source>>>{src}<<<target>>>{tgt}<<<text>>>{text}`
  - 그 외 모델은 **통일 프롬프트**를 사용합니다. (Gemma 계열은 system 없이 user에 합쳐서 전송)
    - 기존 `prompt.system` / `prompt.user`를 그대로 쓰려면 모델 config에 `prompt_style: custom`을 설정하세요.
 

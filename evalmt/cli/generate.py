@@ -11,13 +11,13 @@ from tqdm import tqdm
 
 from ..config import ROOT, ensure_dir, load_dataset_config, load_model_config
 from ..generation.prompts import (
-    build_translategemma_messages,
     language_name_from_code,
     region_name_from_code,
     split_lang_pair,
 )
 from ..generation.vllm_openai import chat_completion, clean_translation, extract_text
 from ..utils.jsonl import iter_jsonl
+from ..utils.lang_codes import apply_lang_code_map
 
 
 def parse_args() -> argparse.Namespace:
@@ -153,13 +153,11 @@ async def main_async() -> None:
                 "target_region": tgt_region,
             }
             if message_format == "translategemma":
-                messages = build_translategemma_messages(
-                    source_text=r["source"],
-                    source_lang_code=row_src,
-                    target_lang_code=row_tgt,
-                    content_type=message_content_type,
-                    lang_code_map=lang_code_map,
-                )
+                if lang_code_map:
+                    row_src = apply_lang_code_map(row_src, lang_code_map)
+                    row_tgt = apply_lang_code_map(row_tgt, lang_code_map)
+                tagged = f\"<<<source>>>{row_src}<<<target>>>{row_tgt}<<<text>>>{r['source']}\"
+                messages = [{\"role\": \"user\", \"content\": tagged}]
             else:
                 system, user = _format_prompt(
                     fmt,
