@@ -438,7 +438,14 @@ source .uv/metric_envs.env
   - `numpy==1.26.4`
   - `datasets==2.21.0`
   - `accelerate==1.12.0`
-  - `pyarrow==15.0.2`
+- `pyarrow==15.0.2`
+
+추가로, `tokenizers==0.13.3`는 **Python 3.12에서 wheel이 없어** Rust 컴파일을 요구할 수 있습니다.  
+MetricX env는 기본적으로 **Python 3.11**을 사용하도록 설정되어 있습니다. 필요 시:
+
+```bash
+METRICX_PYTHON=3.11 bash scripts/setup_metric_envs.sh
+```
 
 필요 시 오버라이드:
 

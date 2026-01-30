@@ -14,6 +14,7 @@ ENV_COMET="${ENV_COMET:-$ENV_ROOT/comet}"
 ENV_METRICX="${ENV_METRICX:-$ENV_ROOT/metricx}"
 ENV_BLEU="${ENV_BLEU:-$ENV_ROOT/bleu}"
 ENV_FILE="${METRIC_ENV_FILE:-$ENV_ROOT/metric_envs.env}"
+METRICX_PYTHON="${METRICX_PYTHON:-3.11}"
 
 # Optional extra pins (comma-separated)
 COMET_EXTRA_DEPS="${COMET_EXTRA_DEPS:-}"
@@ -64,8 +65,14 @@ EOF
 
 sync_project() {
   local dir="$1"
-  echo "==> uv sync --project $dir"
-  uv sync --project "$dir"
+  local py="${2:-}"
+  if [ -n "$py" ]; then
+    echo "==> uv sync --project $dir --python $py"
+    uv sync --project "$dir" --python "$py"
+  else
+    echo "==> uv sync --project $dir"
+    uv sync --project "$dir"
+  fi
 }
 
 echo "Setting up metric envs under $ENV_ROOT"
@@ -74,7 +81,7 @@ write_project "$ENV_METRICX" "evalmt-metricx-env" "metricx" "$METRICX_EXTRA_DEPS
 write_project "$ENV_BLEU" "evalmt-bleu-env" "bleu" "$BLEU_EXTRA_DEPS"
 
 sync_project "$ENV_COMET"
-sync_project "$ENV_METRICX"
+sync_project "$ENV_METRICX" "$METRICX_PYTHON"
 sync_project "$ENV_BLEU"
 
 cat > "$ENV_FILE" <<EOF
