@@ -14,5 +14,6 @@ class BaseDataset(ABC):
         out_dir: Path,
         max_samples: Optional[int] = None,
         seed: int = 42,
+        lang_code_map: Optional[dict[str, str]] = None,
     ) -> None:
         raise NotImplementedError

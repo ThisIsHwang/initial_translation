@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from huggingface_hub import list_repo_files, snapshot_download
 
 from ..utils.jsonl import iter_jsonl, write_jsonl
+from ..utils.lang_codes import split_lp
 from .base import BaseDataset
 from .registry import register_dataset
 
@@ -59,6 +60,7 @@ class WMT24PPDataset(BaseDataset):
         out_dir: Path,
         max_samples: Optional[int] = None,
         seed: int = 42,
+        lang_code_map: Optional[dict[str, str]] = None,
     ) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         repo_dir = self._download(lps=lps)
@@ -81,17 +83,26 @@ class WMT24PPDataset(BaseDataset):
                 original = rec.get("original_target") or rec.get("original_reference")
 
                 ref = post_edit if self.use_post_edit_as_reference else (original or post_edit)
+                row_lp = rec.get("lp", lp)
+                src_code = rec.get("source_lang_code") or ""
+                tgt_code = rec.get("target_lang_code") or ""
+                if not src_code or not tgt_code:
+                    guess_src, guess_tgt = split_lp(row_lp)
+                    src_code = src_code or guess_src
+                    tgt_code = tgt_code or guess_tgt
 
                 rows.append(
                     {
                         "id": f"{lp}:{rec.get('segment_id', len(rows))}",
-                        "lp": rec.get("lp", lp),
+                        "lp": row_lp,
                         "domain": rec.get("domain"),
                         "document_id": rec.get("document_id"),
                         "segment_id": rec.get("segment_id"),
                         "source": rec.get("source"),
                         "reference": ref,
                         "original_reference": original,
+                        "source_lang_code": src_code,
+                        "target_lang_code": tgt_code,
                     }
                 )
 

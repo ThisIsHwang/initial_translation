@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 # Language / region mapping for WMT24++ target codes.
 # Used only to render nicer prompts.
@@ -175,6 +176,20 @@ def split_lang_pair(lp: str) -> tuple[str, str]:
     return src, tgt
 
 
+def language_name_from_code(code: str) -> str:
+    if not code:
+        return code
+    lookup = code.replace("-", "_")
+    return LANGUAGE_BY_CODE.get(lookup, LANGUAGE_BY_CODE.get(code, code))
+
+
+def region_name_from_code(code: str) -> str:
+    if not code:
+        return code
+    lookup = code.replace("-", "_")
+    return REGION_BY_CODE.get(lookup, REGION_BY_CODE.get(code, code))
+
+
 def _normalize_translategemma_lang_code(code: str) -> str:
     norm = (code or "").replace("-", "_")
     if "_" in norm:
@@ -188,15 +203,38 @@ def _normalize_translategemma_lang_code(code: str) -> str:
     return norm
 
 
+def _apply_lang_code_map(code: str, lang_code_map: dict[str, str] | None) -> str:
+    if not lang_code_map:
+        return code
+    if code in lang_code_map and lang_code_map[code]:
+        return lang_code_map[code]
+    alt = code.replace("_", "-")
+    if alt in lang_code_map and lang_code_map[alt]:
+        return lang_code_map[alt]
+    alt2 = code.replace("-", "_")
+    if alt2 in lang_code_map and lang_code_map[alt2]:
+        return lang_code_map[alt2]
+    base = re.split(r"[-_]", code)[0]
+    if base in lang_code_map and lang_code_map[base]:
+        return lang_code_map[base]
+    lower = code.lower()
+    if lower in lang_code_map and lang_code_map[lower]:
+        return lang_code_map[lower]
+    return code
+
+
 def build_translategemma_messages(
     *,
     source_text: str,
     source_lang_code: str,
     target_lang_code: str,
     content_type: str = "text",
+    lang_code_map: dict[str, str] | None = None,
 ) -> list[dict[str, object]]:
     src_code = _normalize_translategemma_lang_code(source_lang_code)
     tgt_code = _normalize_translategemma_lang_code(target_lang_code)
+    src_code = _apply_lang_code_map(src_code, lang_code_map)
+    tgt_code = _apply_lang_code_map(tgt_code, lang_code_map)
     if content_type == "image":
         content = {
             "type": "image",

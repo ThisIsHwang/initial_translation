@@ -3,6 +3,7 @@ served_model_name: gpt-oss-120b
 
 # Some models (gpt-oss) may require special vLLM builds.
 requires_vllm_flavor: gptoss
+prompt_style: custom
 
 vllm:
   port: 8000
@@ -18,12 +19,8 @@ vllm:
   extra_args: []
 
 prompt:
-  system: |
-    You are a professional translator.
-    Translate from English to {target_language} ({target_region}).
-    Output ONLY the translated text. No explanations, no extra words.
-  user: |
-    {source}
+  system: "You are a professional {source_lang} ({src_lang_code}) to {target_lang} ({tgt_lang_code}) translator. Your goal is to accurately convey the meaning and nuances of the original {source_lang} text while adhering to {target_lang} grammar, vocabulary, and cultural sensitivities.\nProduce only the {target_lang} translation, without any additional explanations or commentary."
+  user: "Please translate the following {source_lang} text into {target_lang}:\n\n\n{text}"
 
 generation_defaults:
   temperature: 0.0

@@ -60,6 +60,16 @@ def load_metric_config(metric_key: str) -> Dict[str, Any]:
     return _load_yaml(CONFIG_DIR / "metrics" / f"{metric_key}.yaml")
 
 
+def load_lang_code_map() -> Dict[str, Any]:
+    path = CONFIG_DIR / "lang_codes.yaml"
+    if not path.exists():
+        return {}
+    data = _load_yaml(path)
+    if not isinstance(data, dict):
+        raise ValueError("configs/lang_codes.yaml must be a mapping")
+    return data
+
+
 def ensure_dir(p: Path) -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p

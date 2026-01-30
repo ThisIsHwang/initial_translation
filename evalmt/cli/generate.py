@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
@@ -11,8 +12,9 @@ from tqdm import tqdm
 from ..config import ROOT, ensure_dir, load_dataset_config, load_model_config
 from ..generation.prompts import (
     build_translategemma_messages,
+    language_name_from_code,
+    region_name_from_code,
     split_lang_pair,
-    target_from_lp,
 )
 from ..generation.vllm_openai import chat_completion, clean_translation, extract_text
 from ..utils.jsonl import iter_jsonl
@@ -32,6 +34,39 @@ def parse_args() -> argparse.Namespace:
 
 def out_gen_path(run: str, dataset: str, lp: str, model: str) -> Path:
     return ROOT / "outputs" / run / "gen" / dataset / lp / f"{model}.jsonl"
+
+
+UNIFIED_SYSTEM_TEMPLATE = (
+    "You are a professional {source_lang} ({src_lang_code}) to {target_lang}\n"
+    "({tgt_lang_code}) translator. Your goal is to accurately convey the meaning and\n"
+    "nuances of the original {source_lang} text while adhering to {target_lang} grammar,\n"
+    "vocabulary, and cultural sensitivities.\n"
+    "Produce only the {target_lang}\n"
+    "translation, without any additional explanations or commentary."
+)
+UNIFIED_USER_TEMPLATE = (
+    "Please translate the following {source_lang} text into {target_lang}:\n\n\n{text}"
+)
+
+
+def _format_prompt(
+    fmt: Dict[str, Any],
+    *,
+    prompt_style: str,
+    sys_tmpl: str,
+    usr_tmpl: str,
+    merge_system: bool,
+) -> tuple[str, str]:
+    if prompt_style == "custom":
+        system = sys_tmpl.format(**fmt) if sys_tmpl else ""
+        user = usr_tmpl.format(**fmt) if usr_tmpl else ""
+    else:
+        system = UNIFIED_SYSTEM_TEMPLATE.format(**fmt)
+        user = UNIFIED_USER_TEMPLATE.format(**fmt)
+    if merge_system and system.strip():
+        user = f"{system}\n{user}"
+        system = ""
+    return system, user
 
 
 async def main_async() -> None:
@@ -58,10 +93,28 @@ async def main_async() -> None:
     message_content_type = str(model_cfg.get("message_content_type", "text")).lower()
     sys_tmpl = prompt_cfg.get("system") or ""
     usr_tmpl = prompt_cfg.get("user") or "{source}"
-    tgt = target_from_lp(args.lp)
+    prompt_style = str(model_cfg.get("prompt_style", "unified")).lower()
+    hf_id = str(model_cfg.get("hf_model_id", "")).lower()
+    model_key = str(args.model).lower()
+    is_gemma = "gemma" in hf_id or "gemma" in model_key
+    no_system_prompt = bool(model_cfg.get("no_system_prompt", is_gemma))
     src_code, tgt_code = ("", "")
+    lang_code_map: Dict[str, str] = {}
     if message_format == "translategemma":
         src_code, tgt_code = split_lang_pair(args.lp)
+        lang_code_map = model_cfg.get("translategemma_lang_code_map", {}) or {}
+        if not isinstance(lang_code_map, dict):
+            raise ValueError("translategemma_lang_code_map must be a dict in model config")
+        env_map = os.environ.get("TRANSLATEGEMMA_LANG_CODE_MAP")
+        if env_map:
+            try:
+                env_data = json.loads(env_map)
+            except json.JSONDecodeError as exc:
+                raise ValueError("TRANSLATEGEMMA_LANG_CODE_MAP must be valid JSON") from exc
+            if isinstance(env_data, dict):
+                lang_code_map = {**lang_code_map, **env_data}
+            else:
+                raise ValueError("TRANSLATEGEMMA_LANG_CODE_MAP must be a JSON object")
 
     gen_defaults = model_cfg.get("generation_defaults", {})
     temperature = float(gen_defaults.get("temperature", 0.0))
@@ -73,24 +126,50 @@ async def main_async() -> None:
 
     sem = asyncio.Semaphore(args.concurrency)
 
+    def _row_lang_codes(row: Dict[str, Any]) -> tuple[str, str]:
+        row_src = (row.get("source_lang_code") or "").strip()
+        row_tgt = (row.get("target_lang_code") or "").strip()
+        if row_src and row_tgt:
+            return row_src, row_tgt
+        lp_val = (row.get("lp") or args.lp or "").strip()
+        if lp_val and "-" in lp_val:
+            return split_lang_pair(lp_val)
+        return row_src or src_code, row_tgt or tgt_code
+
     async def run_one(r: Dict[str, Any]) -> Dict[str, Any]:
         async with sem:
+            row_src, row_tgt = _row_lang_codes(r)
+            src_lang = language_name_from_code(row_src)
+            tgt_lang = language_name_from_code(row_tgt)
+            tgt_region = region_name_from_code(row_tgt)
+            fmt = {
+                "source": r["source"],
+                "text": r["source"],
+                "source_lang": src_lang,
+                "src_lang_code": row_src,
+                "target_lang": tgt_lang,
+                "tgt_lang_code": row_tgt,
+                "target_language": tgt_lang,
+                "target_region": tgt_region,
+            }
             if message_format == "translategemma":
                 messages = build_translategemma_messages(
                     source_text=r["source"],
-                    source_lang_code=src_code,
-                    target_lang_code=tgt_code,
+                    source_lang_code=row_src,
+                    target_lang_code=row_tgt,
                     content_type=message_content_type,
+                    lang_code_map=lang_code_map,
                 )
             else:
-                system = sys_tmpl.format(target_language=tgt.language, target_region=tgt.region)
-                user = usr_tmpl.format(
-                    source=r["source"],
-                    target_language=tgt.language,
-                    target_region=tgt.region,
+                system, user = _format_prompt(
+                    fmt,
+                    prompt_style=prompt_style,
+                    sys_tmpl=sys_tmpl,
+                    usr_tmpl=usr_tmpl,
+                    merge_system=no_system_prompt,
                 )
                 messages = []
-                if sys_tmpl and system.strip():
+                if system.strip():
                     messages.append({"role": "system", "content": system})
                 messages.append({"role": "user", "content": user})
             resp = await chat_completion(
@@ -110,6 +189,7 @@ async def main_async() -> None:
                     "model": args.model,
                     "served_model": served,
                     "hypothesis": text,
+                    "messages": messages,
                     "gen_params": {
                         "temperature": temperature,
                         "top_p": top_p,

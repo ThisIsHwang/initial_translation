@@ -182,6 +182,15 @@ CLI 직접 실행 예:
 uv run evalmt-prepare --dataset wmt24pp --lps en-ko_KR --out data/wmt24pp
 ```
 
+전처리 시 언어 코드 매핑이 필요하면:
+
+```bash
+uv run evalmt-prepare --dataset wmt24pp --lps cs_CZ-de_DE --out data/wmt24pp \
+  --lang-code-map '{"cs_CZ":"cs","de_DE":"de-DE"}'
+```
+
+또는 `configs/lang_codes.yaml`에 전역 매핑을 등록해두면 모든 데이터셋에 자동 적용됩니다.
+
 레포 루트 자동 탐색을 위해 `EVALMT_ROOT` 환경 변수를 사용할 수 있습니다.
 
 ---
@@ -273,6 +282,30 @@ WMT24++는 Hugging Face `google/wmt24pp`에서 내려받습니다.
 
 - 기본 동시성: 16 (`CONCURRENCY`로 변경 가능)
 - `--resume` 옵션으로 기존 결과를 건너뜀
+- TranslateGemma 전용 메시지 포맷은 **structured user content**로 전송됩니다.
+  - 모델 config에서 `message_format: translategemma`를 사용
+  - 언어 코드가 맞지 않을 때는 아래 매핑을 사용
+  - TranslateGemma는 **content.text에 원문만** 넣어 전송합니다 (프롬프트 템플릿 미사용)
+ - 그 외 모델은 **통일 프롬프트**를 사용합니다. (Gemma 계열은 system 없이 user에 합쳐서 전송)
+   - 기존 `prompt.system` / `prompt.user`를 그대로 쓰려면 모델 config에 `prompt_style: custom`을 설정하세요.
+
+```yaml
+# configs/models/translategemma_27b_it.yaml
+translategemma_lang_code_map:
+  cs_CZ: cs
+  de_DE: de-DE
+```
+
+또는 실행 시 환경변수로 오버라이드:
+
+```bash
+TRANSLATEGEMMA_LANG_CODE_MAP='{"cs_CZ":"cs","de_DE":"de-DE"}' \
+./scripts/generate.sh run1 wmt24pp cs-CZ-de_DE translategemma_27b_it http://localhost:8000/v1
+```
+
+추가로, 데이터 전처리 단계에서 `source_lang_code` / `target_lang_code`가 JSONL에 포함됩니다.
+TranslateGemma는 **행(row)에 해당 필드가 있으면 그 값을 우선 사용**하며, 없으면 `lp`에서 추출한 값을 사용합니다.
+(필요 시 위의 매핑으로 모델용 코드로 변환)
 
 ### 8.3 메트릭 점수화
 
@@ -526,6 +559,7 @@ bash scripts/run_wmt24pp_all.sh run1 all http://localhost:8000/v1
 - `type`: 데이터셋 로더 유형
 - `hf_repo`: HF repo ID
 - `prepared_dir`: 출력 디렉터리
+전역 언어 코드 매핑은 `configs/lang_codes.yaml`에서 관리합니다.
 
 ### 10.2 모델 (`configs/models/*.yaml`)
 
