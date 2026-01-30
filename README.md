@@ -490,7 +490,7 @@ MetricX env는 기본적으로 **Python 3.11**을 사용하도록 설정되어 �
 METRICX_PYTHON=3.11 bash scripts/setup_metric_envs.sh
 ```
 
-생성/정렬 전용 uv 환경은 `.uv/pipeline_envs.env`에 기록됩니다.
+파이프라인 전용 환경은 `.uv/pipeline_envs.env`에 기록되며, 기본적으로 정렬은 `.uv/vllm`을 사용합니다.
 
 필요 시 오버라이드:
 
@@ -537,7 +537,8 @@ bash scripts/run_wmt24pp_all.sh run1 all http://localhost:8000/v1
 - `scripts/stop_vllm.sh`: vLLM 서버 종료 헬퍼
 - `scripts/run_wmt24pp_all.sh`: wmt24pp 전체 자동 실행 (요청 모델/메트릭 세트)
 - `scripts/setup_metric_envs.sh`: 메트릭별 uv 환경 자동 생성
-  - 생성/정렬용 uv 환경도 같이 생성 (`UV_PROJECT_GEN`, `UV_PROJECT_ALIGN`)
+  - 정렬은 vLLM 환경(`.uv/vllm`)을 사용하도록 기본 설정
+  - 생성은 기본 환경을 사용 (`UV_PROJECT_GEN` 비움)
 
 ### CLI 엔트리포인트
 
