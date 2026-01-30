@@ -431,10 +431,18 @@ source .uv/metric_envs.env
 이 구성은 **metricx와 comet을 완전히 분리된 환경**으로 실행합니다.
 
 문제 해결:
-- `tokenizers`/`transformers` 버전 충돌이 나면, 아래처럼 핀을 지정해서 재생성하세요.
+- MetricX는 **고정 버전**을 요구합니다. 기본값은 아래 핀으로 설정됩니다:
+  - `transformers[torch]==4.30.2`
+  - `sentencepiece==0.1.99`
+  - `numpy==1.26.4`
+  - `datasets==2.21.0`
+  - `accelerate==1.12.0`
+  - `pyarrow==15.0.2`
+
+필요 시 오버라이드:
 
 ```bash
-METRICX_EXTRA_DEPS="transformers>=4.41.0,tokenizers>=0.15.2" \
+METRICX_EXTRA_DEPS="transformers[torch]==4.30.2,sentencepiece==0.1.99,numpy==1.26.4,datasets==2.21.0,accelerate==1.12.0,pyarrow==15.0.2" \
 bash scripts/setup_metric_envs.sh
 ```
 

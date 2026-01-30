@@ -17,7 +17,8 @@ ENV_FILE="${METRIC_ENV_FILE:-$ENV_ROOT/metric_envs.env}"
 
 # Optional extra pins (comma-separated)
 COMET_EXTRA_DEPS="${COMET_EXTRA_DEPS:-}"
-METRICX_EXTRA_DEPS="${METRICX_EXTRA_DEPS:-transformers>=4.41.0,tokenizers>=0.15.2}"
+# MetricX env pins (override with METRICX_EXTRA_DEPS if needed)
+METRICX_EXTRA_DEPS="${METRICX_EXTRA_DEPS:-transformers[torch]==4.30.2,sentencepiece==0.1.99,numpy==1.26.4,datasets==2.21.0,accelerate==1.12.0,pyarrow==15.0.2}"
 BLEU_EXTRA_DEPS="${BLEU_EXTRA_DEPS:-}"
 
 write_project() {
@@ -30,16 +31,6 @@ write_project() {
   mkdir -p "$dir"
   mkdir -p "$dir/src/$pkg_name"
   : > "$dir/src/$pkg_name/__init__.py"
-  local deps_block="  \"evalmt[$extra] @ $ROOT_URL\""
-  if [ -n "$extra_deps" ]; then
-    IFS=',' read -r -a dep_list <<< "$extra_deps"
-    for dep in "${dep_list[@]}"; do
-      dep=$(echo "$dep" | xargs)
-      if [ -n "$dep" ]; then
-        deps_block="${deps_block}\n  \"${dep}\""
-      fi
-    done
-  fi
   cat > "$dir/pyproject.toml" <<EOF
 [build-system]
 requires = ["hatchling>=1.25.0"]
@@ -49,7 +40,18 @@ build-backend = "hatchling.build"
 name = "$name"
 version = "0.0.0"
 dependencies = [
-$deps_block
+EOF
+  echo "  \"evalmt[$extra] @ $ROOT_URL\"" >> "$dir/pyproject.toml"
+  if [ -n "$extra_deps" ]; then
+    IFS=',' read -r -a dep_list <<< "$extra_deps"
+    for dep in "${dep_list[@]}"; do
+      dep=$(echo "$dep" | xargs)
+      if [ -n "$dep" ]; then
+        echo "  \"${dep}\"" >> "$dir/pyproject.toml"
+      fi
+    done
+  fi
+  cat >> "$dir/pyproject.toml" <<EOF
 ]
 
 [tool.hatch.metadata]
