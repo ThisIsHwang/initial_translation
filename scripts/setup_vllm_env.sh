@@ -43,7 +43,7 @@ echo "==> uv sync --project $ENV_VLLM"
 uv sync --project "$ENV_VLLM"
 
 echo "==> Installing vLLM into $ENV_VLLM"
-uv run --project "$ENV_VLLM" python -m pip install "$VLLM_PIP_SPEC"
+uv --project "$ENV_VLLM" pip install "$VLLM_PIP_SPEC"
 
 if [ "$VLLM_GPTOSS_INSTALL" = "1" ]; then
   echo "==> Installing gpt-oss vLLM flavor"
