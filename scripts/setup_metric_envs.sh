@@ -19,7 +19,11 @@ write_project() {
   local dir="$1"
   local name="$2"
   local extra="$3"
+  local pkg_name
+  pkg_name=$(echo "$name" | tr '-' '_' | tr '.' '_')
   mkdir -p "$dir"
+  mkdir -p "$dir/src/$pkg_name"
+  : > "$dir/src/$pkg_name/__init__.py"
   cat > "$dir/pyproject.toml" <<EOF
 [build-system]
 requires = ["hatchling>=1.25.0"]
@@ -31,6 +35,12 @@ version = "0.0.0"
 dependencies = [
   "evalmt[$extra] @ $ROOT_URL"
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/$pkg_name"]
 EOF
 }
 
