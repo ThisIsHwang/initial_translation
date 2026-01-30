@@ -369,7 +369,7 @@ COMET은 **입력에 문맥을 붙이고 `enable_context`를 켜는 방식**으�
   - 문서 번역을 다시 문장으로 나눌 때는 마커 기준으로 split하고, 평가 전 마커를 제거합니다.
   - 관련 옵션: `DOC_MARKER_TEMPLATE`, `DOC_MARKER_JOIN`, `DOC_MARKER_FIELDS`, `DOC_MARKER_REGEX`, `DOC_MARKER_KEEP_RAW`
 - 문단→문장 분절 정렬 모드:
-  - `DOC_ALIGN_MODE=labse`로 LaBSE 기반 정렬 사용 (기본 `rule`)
+  - 정렬은 LLM(`DOC_ALIGN_MODE=gpt`)만 사용합니다.
     - 필요 의존성: `evalmt[align]` (또는 별도 align env)
   - `DOC_ALIGN_META=1`이면 `align_score`, `align_span`, `align_low_conf`를 출력에 포함
   - `DOC_ALIGN_MODEL=intfloat/multilingual-e5-large`로 E5 모델 사용 가능 (query/passsage prefix 적용)

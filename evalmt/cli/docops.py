@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..utils.jsonl import iter_jsonl, write_jsonl
 from ..utils.text import infer_order_field, join_with_sep, normalize_text
-from ..align.labse_align import AlignConfig, align_with_labse
 from ..generation.vllm_openai import chat_completion, extract_text
 
 
@@ -331,50 +330,8 @@ def cmd_expand(args: argparse.Namespace) -> None:
                 sent_hyps[idx] = (row.get("hyp") if row else "") or ""
                 doc_split_status[idx] = "gpt"
                 doc_hyps[idx] = doc_hyp
-        elif args.align_mode == "labse":
-            src_sents = [base_rows[i].get("source", "") for i in idxs]
-            attach_remaining = bool(args.align_attach_remaining_to_last)
-            if args.align_no_attach_remaining:
-                attach_remaining = False
-
-            cfg = AlignConfig(
-                model_name=args.align_model,
-                device=args.align_device or None,
-                batch_size=args.align_batch_size,
-                seed=args.align_seed,
-                max_chars=args.align_max_chars,
-                min_tokens=args.align_min_tokens,
-                min_chars=args.align_min_chars,
-                max_merge_chunks=args.align_max_merge_chunks,
-                max_merge_chars=args.align_max_merge_chars,
-                attach_remaining_to_last=attach_remaining,
-                allow_n_to_1=args.align_allow_n_to_1,
-                low_conf_threshold=args.align_low_conf_threshold,
-            )
-            aligned_rows, _doc_score = align_with_labse(src_sents, doc_hyp, config=cfg)
-            for i, idx in enumerate(idxs):
-                row = aligned_rows[i] if i < len(aligned_rows) else None
-                sent_hyps[idx] = (row.get("hyp") if row else "") or ""
-                doc_split_status[idx] = "labse"
-                doc_hyps[idx] = doc_hyp
-                if args.align_meta and row:
-                    align_scores[idx] = float(row.get("score", 0.0))
-                    align_spans[idx] = tuple(row.get("hyp_span", (0, -1)))
-                    align_low_conf[idx] = bool(row.get("low_conf", False))
         else:
-            parts = _split_text(
-                doc_hyp,
-                sep=args.sep,
-                splitter=args.splitter,
-                regex=args.regex,
-                marker_regex=args.marker_regex,
-            )
-            aligned, status = _align_segments(parts, len(idxs), marker_regex=args.marker_regex)
-
-            for i, idx in enumerate(idxs):
-                sent_hyps[idx] = aligned[i] if i < len(aligned) else ""
-                doc_split_status[idx] = status
-                doc_hyps[idx] = doc_hyp
+            raise ValueError("align_mode must be 'gpt' (LLM-only alignment is enforced)")
 
     out_rows: List[Dict[str, Any]] = []
     for i, r in enumerate(base_rows):
@@ -446,21 +403,8 @@ def parse_args() -> argparse.Namespace:
     p_exp.add_argument("--regex", default=None)
     p_exp.add_argument("--marker-regex", default=None)
     p_exp.add_argument("--add-doc-hyp", action="store_true")
-    p_exp.add_argument("--align-mode", choices=["rule", "labse", "gpt"], default="rule")
+    p_exp.add_argument("--align-mode", choices=["gpt"], default="gpt")
     p_exp.add_argument("--align-meta", action="store_true")
-    p_exp.add_argument("--align-model", default="sentence-transformers/LaBSE")
-    p_exp.add_argument("--align-device", default=None)
-    p_exp.add_argument("--align-batch-size", type=int, default=32)
-    p_exp.add_argument("--align-seed", type=int, default=42)
-    p_exp.add_argument("--align-max-chars", type=int, default=320)
-    p_exp.add_argument("--align-min-tokens", type=int, default=4)
-    p_exp.add_argument("--align-min-chars", type=int, default=12)
-    p_exp.add_argument("--align-max-merge-chunks", type=int, default=6)
-    p_exp.add_argument("--align-max-merge-chars", type=int, default=1000)
-    p_exp.add_argument("--align-attach-remaining-to-last", action="store_true")
-    p_exp.add_argument("--align-no-attach-remaining", action="store_true")
-    p_exp.add_argument("--align-allow-n-to-1", action="store_true")
-    p_exp.add_argument("--align-low-conf-threshold", type=float, default=0.55)
     p_exp.add_argument("--align-api-base", default=None)
     p_exp.add_argument("--align-model-name", default=None)
     p_exp.add_argument("--align-temperature", type=float, default=0.0)
