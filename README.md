@@ -428,7 +428,9 @@ bash scripts/setup_metric_envs.sh
 source .uv/metric_envs.env
 ```
 
-이 구성은 **metricx와 comet을 완전히 분리된 환경**으로 실행합니다.
+이 구성은 **metricx와 comet을 완전히 분리된 환경**으로 실행합니다.  
+MetricX env는 **evalmt base**만 설치하고(= `evalmt[metricx]` 미사용),  
+필수 의존성은 고정 버전으로 직접 설치해 **vLLM과의 transformers 충돌을 방지**합니다.
 
 문제 해결:
 - MetricX는 **고정 버전**을 요구합니다. 기본값은 아래 핀으로 설정됩니다:

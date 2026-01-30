@@ -29,6 +29,10 @@ write_project() {
   local extra_deps="$4"
   local pkg_name
   pkg_name=$(echo "$name" | tr '-' '_' | tr '.' '_')
+  local evalmt_dep="evalmt @ $ROOT_URL"
+  if [ -n "$extra" ]; then
+    evalmt_dep="evalmt[$extra] @ $ROOT_URL"
+  fi
   mkdir -p "$dir"
   mkdir -p "$dir/src/$pkg_name"
   : > "$dir/src/$pkg_name/__init__.py"
@@ -42,7 +46,7 @@ name = "$name"
 version = "0.0.0"
 dependencies = [
 EOF
-  echo "  \"evalmt[$extra] @ $ROOT_URL\"," >> "$dir/pyproject.toml"
+  echo "  \"${evalmt_dep}\"," >> "$dir/pyproject.toml"
   if [ -n "$extra_deps" ]; then
     IFS=',' read -r -a dep_list <<< "$extra_deps"
     for dep in "${dep_list[@]}"; do
@@ -77,7 +81,8 @@ sync_project() {
 
 echo "Setting up metric envs under $ENV_ROOT"
 write_project "$ENV_COMET" "evalmt-comet-env" "comet" "$COMET_EXTRA_DEPS"
-write_project "$ENV_METRICX" "evalmt-metricx-env" "metricx" "$METRICX_EXTRA_DEPS"
+# MetricX env intentionally uses base evalmt (no extras) to avoid transformers conflicts.
+write_project "$ENV_METRICX" "evalmt-metricx-env" "" "$METRICX_EXTRA_DEPS"
 write_project "$ENV_BLEU" "evalmt-bleu-env" "bleu" "$BLEU_EXTRA_DEPS"
 
 sync_project "$ENV_COMET"
