@@ -25,8 +25,9 @@ pipeline_normalize_sep() {
 
 pipeline_normalize_lp() {
   local lp="$1"
-  lp="${lp%.jsonl}"
-  lp="${lp%.jsnol}"
+  while [[ "$lp" == *.jsonl || "$lp" == *.jsnol ]]; do
+    lp="${lp%.*}"
+  done
   printf '%s' "$lp"
 }
 
@@ -83,7 +84,10 @@ pipeline_list_lps() {
     local dir
     dir=$(pipeline_dataset_prepared_dir "$dataset")
     if [ -d "$dir" ]; then
-      ls "$dir"/*.jsonl 2>/dev/null | xargs -n1 basename 2>/dev/null | sed -E 's/\\.jsonl$//; s/\\.jsnol$//' | sort -u
+      ls "$dir"/*.jsonl 2>/dev/null | xargs -n1 basename 2>/dev/null | while read -r f; do
+        pipeline_normalize_lp "$f"
+        echo
+      done | sed '/^$/d' | sort -u
     fi
   else
     for lp in ${lps//,/ }; do
