@@ -4,6 +4,12 @@ pipeline_log() {
   echo "[$(date +%H:%M:%S)] $*"
 }
 
+PIPELINE_ENV_FILE="${PIPELINE_ENV_FILE:-.uv/pipeline_envs.env}"
+if [ -f "$PIPELINE_ENV_FILE" ]; then
+  # shellcheck source=/dev/null
+  source "$PIPELINE_ENV_FILE"
+fi
+
 pipeline_die() {
   echo "ERROR: $*" >&2
   exit 1

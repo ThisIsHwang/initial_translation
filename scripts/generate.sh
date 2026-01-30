@@ -10,6 +10,11 @@ API_BASE="${5:-http://localhost:8000/v1}"
 # You can override concurrency like:
 #   CONCURRENCY=64 ./scripts/generate.sh ...
 CONCURRENCY="${CONCURRENCY:-16}"
+PIPELINE_ENV_FILE="${PIPELINE_ENV_FILE:-.uv/pipeline_envs.env}"
+if [ -f "$PIPELINE_ENV_FILE" ]; then
+  # shellcheck source=/dev/null
+  source "$PIPELINE_ENV_FILE"
+fi
 UV_PROJECT_GEN="${UV_PROJECT_GEN:-${UV_PROJECT:-}}"
 
 UV_ARGS=()
