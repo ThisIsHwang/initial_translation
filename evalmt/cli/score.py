@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import argparse
 
+import importlib
+
 from ..config import ROOT, load_metric_config
 from ..metrics.registry import METRIC_REGISTRY
-from ..metrics.bleu_metric import BleuMetric  # register side-effect
-from ..metrics.comet_metric import CometMetric  # register side-effect
-from ..metrics.metricx_metric import MetricXMetric  # register side-effect
 
 
 def parse_args() -> argparse.Namespace:
@@ -23,6 +22,16 @@ def main() -> None:
     args = parse_args()
     cfg = load_metric_config(args.metric)
     metric_type = cfg["type"]
+
+    # Lazy-import only the required metric implementation to avoid
+    # pulling heavy deps from other metric stacks into this env.
+    module_map = {
+        "bleu": "evalmt.metrics.bleu_metric",
+        "comet": "evalmt.metrics.comet_metric",
+        "metricx": "evalmt.metrics.metricx_metric",
+    }
+    if metric_type in module_map and metric_type not in METRIC_REGISTRY:
+        importlib.import_module(module_map[metric_type])
 
     if metric_type not in METRIC_REGISTRY:
         raise KeyError(f"Unknown metric type: {metric_type}. Registered={list(METRIC_REGISTRY)}")
