@@ -1,0 +1,8 @@
+# XCOMET-XXL QE
+type: comet
+mode: qe
+model: Unbabel/XCOMET-XXL
+
+direction: higher_is_better
+batch_size: 8
+gpus: 1

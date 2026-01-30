@@ -1,0 +1,16 @@
+# COMETKiwi WMT23 XXL QE with document context
+type: comet
+mode: qe
+model: Unbabel/wmt23-cometkiwi-da-xxl
+
+enable_context: true
+context_window: 2
+context_separator: "</s>"
+context_separator_with_spaces: false
+context_append_current: true
+context_append_delimiter: "\n"
+context_append_only_if_context: true
+
+direction: higher_is_better
+batch_size: 8
+gpus: 1

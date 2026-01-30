@@ -20,6 +20,29 @@ def _normalize_text(value: Any) -> str:
     return str(value).strip()
 
 
+def _safe_json_loads(text: str) -> Dict[str, Any]:
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # Try to recover JSON object/array embedded in extra text.
+    start_obj = text.find("{")
+    end_obj = text.rfind("}")
+    start_arr = text.find("[")
+    end_arr = text.rfind("]")
+    candidates: List[str] = []
+    if start_obj != -1 and end_obj != -1 and end_obj > start_obj:
+        candidates.append(text[start_obj : end_obj + 1])
+    if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+        candidates.append(text[start_arr : end_arr + 1])
+    for cand in candidates:
+        try:
+            return json.loads(cand)
+        except Exception:
+            continue
+    raise ValueError(f"Failed to parse JSON from alignment model response:\n{text}")
+
+
 def _infer_order_field(rows: List[Dict[str, Any]], order_field: Optional[str]) -> Optional[str]:
     if order_field:
         return order_field
@@ -320,17 +343,14 @@ def cmd_expand(args: argparse.Namespace) -> None:
 
             text = extract_text(resp)
             try:
-                data = json.loads(text)
-            except Exception as e:
+                data = _safe_json_loads(text)
+            except Exception:
                 if response_format:
                     resp = asyncio.run(_run(None))
                     text = extract_text(resp)
-                    try:
-                        data = json.loads(text)
-                    except Exception as e2:
-                        raise ValueError(f"Failed to parse JSON from alignment model: {e2}\n{text}") from e2
+                    data = _safe_json_loads(text)
                 else:
-                    raise ValueError(f"Failed to parse JSON from alignment model: {e}\n{text}") from e
+                    raise
 
             items = data.get("aligned") if isinstance(data, dict) else data
             if not isinstance(items, list) or len(items) != len(src_sents):

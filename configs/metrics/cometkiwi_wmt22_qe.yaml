@@ -1,0 +1,8 @@
+# COMETKiwi WMT22 QE
+type: comet
+mode: qe
+model: Unbabel/wmt22-cometkiwi-da
+
+direction: higher_is_better
+batch_size: 8
+gpus: 1
