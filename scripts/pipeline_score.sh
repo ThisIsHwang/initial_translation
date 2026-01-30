@@ -52,6 +52,7 @@ if [ "${#METRICS_DOC[@]}" -eq 0 ]; then
 fi
 
 for dataset in "${DATASET_LIST[@]}"; do
+  BASE_DIR="$(pipeline_dataset_prepared_dir "$dataset")"
   mapfile -t LP_LIST < <(pipeline_list_lps "$dataset" "$LPS")
   if [ "${#LP_LIST[@]}" -eq 0 ]; then
     pipeline_log "No LPs found for dataset $dataset"
@@ -59,11 +60,12 @@ for dataset in "${DATASET_LIST[@]}"; do
   fi
 
   DOC_DATASET="${dataset}${DOC_SUFFIX}"
+  DOC_DIR="$(pipeline_dataset_prepared_dir "$DOC_DATASET")"
 
   for MODEL_KEY in "${MODEL_LIST[@]}"; do
     for LP in "${LP_LIST[@]}"; do
-      BASE_PATH="data/${dataset}/${LP}.jsonl"
-      DOC_PATH="data/${DOC_DATASET}/${LP}.jsonl"
+      BASE_PATH="${BASE_DIR}/${LP}.jsonl"
+      DOC_PATH="${DOC_DIR}/${LP}.jsonl"
       HAS_REF=$(pipeline_jsonl_has_key "$BASE_PATH" "reference")
 
       # sentence evals (non-context)

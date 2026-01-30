@@ -23,6 +23,27 @@ pipeline_normalize_sep() {
   fi
 }
 
+pipeline_normalize_lp() {
+  local lp="$1"
+  lp="${lp%.jsonl}"
+  lp="${lp%.jsnol}"
+  printf '%s' "$lp"
+}
+
+pipeline_dataset_prepared_dir() {
+  local dataset="$1"
+  local cfg="configs/datasets/${dataset}.yaml"
+  if [ -f "$cfg" ]; then
+    local line
+    line=$(rg -m1 '^prepared_dir:' "$cfg" 2>/dev/null || true)
+    if [ -n "$line" ]; then
+      echo "$line" | sed -E 's/^prepared_dir:[[:space:]]*//; s/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//; s/^'\''//; s/'\''$//'
+      return
+    fi
+  fi
+  echo "data/$dataset"
+}
+
 pipeline_list_datasets() {
   local datasets="$1"
   if [ "$datasets" = "all" ]; then
@@ -59,11 +80,16 @@ pipeline_list_lps() {
   local dataset="$1"
   local lps="$2"
   if [ "$lps" = "all" ]; then
-    if [ -d "data/$dataset" ]; then
-      ls "data/$dataset"/*.jsonl 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\\.jsonl$//' | sort -u
+    local dir
+    dir=$(pipeline_dataset_prepared_dir "$dataset")
+    if [ -d "$dir" ]; then
+      ls "$dir"/*.jsonl 2>/dev/null | xargs -n1 basename 2>/dev/null | sed -E 's/\\.jsonl$//; s/\\.jsnol$//' | sort -u
     fi
   else
-    echo "${lps//,/ }"
+    for lp in ${lps//,/ }; do
+      pipeline_normalize_lp "$lp"
+      echo
+    done | sed '/^$/d'
   fi
 }
 

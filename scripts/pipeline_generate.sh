@@ -37,11 +37,15 @@ needs_generation() {
   local model_key="$1"
   local need=0
   for dataset in "${DATASET_LIST[@]}"; do
+    local base_dir
+    base_dir="$(pipeline_dataset_prepared_dir "$dataset")"
     local doc_dataset="${dataset}${DOC_SUFFIX}"
+    local doc_dir
+    doc_dir="$(pipeline_dataset_prepared_dir "$doc_dataset")"
     mapfile -t lp_list < <(pipeline_list_lps "$dataset" "$LPS")
     for lp in "${lp_list[@]}"; do
-      local base_path="data/${dataset}/${lp}.jsonl"
-      local doc_path="data/${doc_dataset}/${lp}.jsonl"
+      local base_path="${base_dir}/${lp}.jsonl"
+      local doc_path="${doc_dir}/${lp}.jsonl"
       local sent_gen="outputs/${RUN_NAME}/gen/${dataset}/${lp}/${model_key}.jsonl"
       local doc_gen="outputs/${RUN_NAME}/gen/${doc_dataset}/${lp}/${model_key}.jsonl"
       local base_n doc_n sent_n doc_n_gen
@@ -62,11 +66,12 @@ needs_generation() {
 }
 
 for dataset in "${DATASET_LIST[@]}"; do
+  BASE_DIR="$(pipeline_dataset_prepared_dir "$dataset")"
   if [ "$PREPARE_DATA" = "1" ]; then
     ./scripts/prepare_data.sh "$dataset" "$LPS"
   fi
-  if [ ! -d "data/$dataset" ]; then
-    pipeline_die "Missing data dir: data/$dataset (set PREPARE_DATA=1 to build)"
+  if [ ! -d "$BASE_DIR" ]; then
+    pipeline_die "Missing data dir: $BASE_DIR (set PREPARE_DATA=1 to build)"
   fi
 
   mapfile -t LP_LIST < <(pipeline_list_lps "$dataset" "$LPS")
@@ -89,7 +94,7 @@ EOF
 
   # Build doc-level datasets
   for lp in "${LP_LIST[@]}"; do
-    BASE_PATH="data/${dataset}/${lp}.jsonl"
+    BASE_PATH="${BASE_DIR}/${lp}.jsonl"
     if [ ! -f "$BASE_PATH" ]; then
       echo "Missing base dataset: $BASE_PATH"
       exit 1

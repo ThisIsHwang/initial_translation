@@ -66,6 +66,7 @@ if [ "$DOC_ALIGN_MODE" = "gpt" ] && [ "$MANAGE_ALIGN_SERVER" = "1" ]; then
 fi
 
 for dataset in "${DATASET_LIST[@]}"; do
+  BASE_DIR="$(pipeline_dataset_prepared_dir "$dataset")"
   mapfile -t LP_LIST < <(pipeline_list_lps "$dataset" "$LPS")
   if [ "${#LP_LIST[@]}" -eq 0 ]; then
     pipeline_log "No LPs found for dataset $dataset"
@@ -73,6 +74,7 @@ for dataset in "${DATASET_LIST[@]}"; do
   fi
 
   DOC_DATASET="${dataset}${DOC_SUFFIX}"
+  DOC_DIR="$(pipeline_dataset_prepared_dir "$DOC_DATASET")"
 
   for MODEL_KEY in "${MODEL_LIST[@]}"; do
     for LP in "${LP_LIST[@]}"; do
@@ -107,7 +109,7 @@ for dataset in "${DATASET_LIST[@]}"; do
       fi
 
       pipeline_docops expand \
-        --base "data/${dataset}/${LP}.jsonl" \
+        --base "${BASE_DIR}/${LP}.jsonl" \
         --doc "$DOC_FOR_EXP" \
         --output "$SENT_FROM_DOC" \
         --sep "$DOC_SPLIT_SEP" \
